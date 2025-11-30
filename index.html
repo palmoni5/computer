@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת הפעלה וירטואלית Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- Global & System --- */
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+            background: black;
+        }
+
+        /* Animations */
+        @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* System Overlay (Boot/Login) */
+        .system-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: black;
+            color: white;
+            transition: opacity 1s;
+        }
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+
+        /* Desktop */
+        .desktop-bg {
+            background: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1920&q=80') center/cover;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
+        }
+
+        /* Window System */
+        .window {
+            position: absolute;
+            background: #f3f4f6;
+            border: 1px solid #6b7280;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            min-width: 200px; min-height: 150px;
+            resize: both;
+            animation: popIn 0.2s ease-out;
+        }
+        .window-header {
+            background: #e5e7eb; padding: 8px 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: grab; border-bottom: 1px solid #d1d5db;
+            user-select: none;
+        }
+        .window-header:active { cursor: grabbing; }
+        .window-content { flex-grow: 1; position: relative; background: white; overflow: auto; }
+        
+        /* Taskbar */
+        .taskbar {
+            position: absolute; bottom: 0; width: 100%; height: 48px;
+            background: rgba(31, 41, 55, 0.95);
+            backdrop-filter: blur(5px);
+            display: flex; align-items: center; padding: 0 10px;
+            z-index: 9000; color: white; border-top: 1px solid #374151;
+        }
+        .task-item {
+            background: rgba(255,255,255,0.1); padding: 4px 12px; margin-right: 4px;
+            border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            max-width: 160px; font-size: 0.9rem; transition: background 0.2s; border-bottom: 2px solid transparent;
+        }
+        .task-item:hover { background: rgba(255,255,255,0.2); }
+        .task-item.active { background: rgba(255,255,255,0.15); border-bottom: 2px solid #60a5fa; }
+
+        /* Start Menu */
+        .start-menu {
+            position: absolute; bottom: 50px; right: 10px; width: 300px;
+            background: rgba(243, 244, 246, 0.98);
+            border: 1px solid #d1d5db; border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            display: none; z-index: 9001; flex-direction: column;
+            animation: slideUp 0.2s ease-out;
+        }
+        .start-menu.active { display: flex; }
+
+        /* --- Application Specific Styles --- */
+        
+        /* Word */
+        .page-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        
+        /* Excel */
+        .excel-grid { display: grid; grid-template-columns: 40px repeat(10, 100px); overflow: auto; }
+        .excel-cell { 
+            border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; 
+            padding: 4px; font-size: 13px; outline: none; height: 25px;
+        }
+        .excel-cell:focus { border: 2px solid #16a34a; z-index: 10; }
+        .excel-header { background: #f3f4f6; font-weight: bold; text-align: center; border-right: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; font-size: 12px; padding: 4px; }
+        
+        /* PowerPoint */
+        .slide-preview { cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .slide-preview:hover { border-color: #fdba74; }
+        .slide-preview.active-slide { border-color: #ea580c; }
+
+        /* Android Emulator */
+        .android-device { 
+            background: #1f2937; border-radius: 30px; padding: 10px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); 
+            height: 100%; display: flex; flex-direction: column;
+        }
+        .android-screen {
+            background-color: #000; background-image: url('https://images.unsplash.com/photo-1512314889357-e157c22f938d?auto=format&fit=crop&w=500&q=80');
+            background-size: cover; background-position: center;
+            flex-grow: 1; border-radius: 20px; position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .android-app-view { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 20; flex-direction: column; }
+        
+        /* macOS Emulator */
+        .mac-screen { position: relative; width: 100%; height: 100%; background: url('https://images.unsplash.com/photo-1496664444929-8c75efb9546f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80') center/cover; overflow: hidden; }
+        .mac-window {
+            position: absolute; background: #fff; border-radius: 6px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #d1d5db;
+            display: none; flex-direction: column; overflow: hidden;
+        }
+        .mac-dock {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);
+            padding: 8px; border-radius: 16px; display: flex; gap: 12px; border: 1px solid rgba(255,255,255,0.2);
+            z-index: 100;
+        }
+        .mac-dock-icon {
+            width: 48px; height: 48px; border-radius: 12px; cursor: pointer;
+            transition: transform 0.2s ease; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .mac-dock-icon:hover { transform: scale(1.2) translateY(-10px); }
+
+    </style>
+</head>
+<body class="text-right">
+
+    <!-- Boot Sequence -->
+    <div id="boot-screen" class="system-overlay">
+        <i class="fab fa-windows text-7xl text-blue-500 mb-8 animate-pulse"></i>
+        <div class="loader"></div>
+        <div class="text-xl font-light">טוען משאבי מערכת...</div>
+    </div>
+
+    <!-- Login -->
+    <div id="login-screen" class="system-overlay" style="display: none; background-image: url('https://images.unsplash.com/photo-1477346611705-65d1883cee1e?auto=format&fit=crop&w=1920&q=80'); background-size: cover;">
+        <div class="backdrop-blur-xl bg-black/40 p-10 rounded-2xl text-center shadow-2xl border border-white/10">
+            <div class="w-32 h-32 bg-gray-200 rounded-full mx-auto mb-6 flex items-center justify-center text-5xl text-gray-600 border-4 border-white/50 shadow-inner">
+                <i class="fas fa-user-astronaut"></i>
+            </div>
+            <h2 class="text-3xl font-bold mb-6 text-white drop-shadow-lg">מנהל מערכת</h2>
+            <div class="flex flex-col gap-3">
+                <input type="password" placeholder="סיסמה (לחץ כניסה)" class="px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-gray-300 focus:outline-none focus:bg-white/30 text-center">
+                <button onclick="login()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                    <i class="fas fa-sign-in-alt"></i> כניסה
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Environment -->
+    <div id="desktop-env" style="display: none; height: 100vh; position: relative;">
+        <div class="desktop-bg"></div>
+        
+        <!-- Desktop Icons -->
+        <div id="desktop-icons" class="absolute top-0 right-0 p-4 h-full flex flex-col flex-wrap content-start gap-4">
+            <!-- Injected via JS -->
+        </div>
+
+        <!-- Windows Area -->
+        <div id="windows-container"></div>
+
+        <!-- Start Menu -->
+        <div id="start-menu" class="start-menu">
+            <div class="bg-blue-600 text-white p-4 rounded-t-lg flex items-center gap-3">
+                <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><i class="fas fa-user"></i></div>
+                <div>
+                    <div class="font-bold">מנהל מערכת</div>
+                    <div class="text-xs opacity-75">מחובר כעת</div>
+                </div>
+            </div>
+            <div class="p-2 grid grid-cols-1 gap-1 overflow-y-auto max-h-[400px]" id="start-menu-items">
+                <!-- Injected via JS -->
+            </div>
+            <div class="p-3 border-t bg-gray-50 rounded-b-lg flex justify-between mt-auto">
+                <button onclick="systemAction('shutdown')" class="text-red-600 hover:bg-red-50 px-3 py-1 rounded text-sm font-bold flex items-center gap-2">
+                    <i class="fas fa-power-off"></i> כיבוי
+                </button>
+                <button onclick="systemAction('restart')" class="text-orange-600 hover:bg-orange-50 px-3 py-1 rounded text-sm font-bold flex items-center gap-2">
+                    <i class="fas fa-sync"></i> הפעלה מחדש
+                </button>
+            </div>
+        </div>
+
+        <!-- Taskbar -->
+        <div class="taskbar">
+            <div class="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-md cursor-pointer transition font-bold flex items-center gap-2 shadow-lg" onclick="toggleStartMenu()">
+                <i class="fab fa-windows"></i> התחל
+            </div>
+            <div class="flex-grow flex px-4" id="taskbar-apps"></div>
+            <div class="flex flex-col items-end text-xs font-mono opacity-90 leading-tight border-r border-gray-600 pr-3">
+                <span id="clock-time" class="text-lg">12:00</span>
+                <span id="clock-date" class="text-gray-300">01/01/2025</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- System Logic ---
+        let zIndex = 100;
+        let windows = {};
+        let activeApp = null;
+        
+        // --- Apps Data ---
+        const apps = [
+            // === OFFICE SUITE ===
+            {
+                id: 'word', name: 'Word Pro', icon: 'fa-file-word', color: 'text-blue-700',
+                w: 800, h: 600,
+                content: `
+                    <div class="flex flex-col h-full bg-gray-100">
+                        <div class="bg-[#2b579a] text-white px-4 py-2 flex items-center justify-between text-sm">
+                            <div class="flex gap-4">
+                                <span class="font-bold">שמירה אוטומטית: פעיל</span>
+                                <span>קובץ</span> <span>בית</span> <span>הוספה</span> <span>עיצוב</span> <span>תצוגה</span>
+                            </div>
+                            <div>מסמך 1 - Word</div>
+                        </div>
+                        <!-- Toolbar -->
+                        <div class="bg-white border-b p-2 flex gap-3 items-center shadow-sm">
+                            <div class="flex gap-1 border-l pl-2 ml-2">
+                                <button onclick="formatDoc('bold')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-bold"></i></button>
+                                <button onclick="formatDoc('italic')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-italic"></i></button>
+                                <button onclick="formatDoc('underline')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-underline"></i></button>
+                                <button onclick="formatDoc('strikeThrough')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-strikethrough"></i></button>
+                            </div>
+                            <div class="flex gap-1 border-l pl-2 ml-2">
+                                <button onclick="formatDoc('justifyRight')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-align-right"></i></button>
+                                <button onclick="formatDoc('justifyCenter')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-align-center"></i></button>
+                                <button onclick="formatDoc('justifyLeft')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-align-left"></i></button>
+                            </div>
+                            <div class="flex gap-1">
+                                <button onclick="formatDoc('insertUnorderedList')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-list-ul"></i></button>
+                                <button onclick="formatDoc('insertOrderedList')" class="p-1.5 hover:bg-gray-200 rounded w-8"><i class="fas fa-list-ol"></i></button>
+                            </div>
+                            <select onchange="formatDoc('foreColor', this.value)" class="border rounded p-1 text-sm mr-2">
+                                <option value="black">שחור</option>
+                                <option value="red">אדום</option>
+                                <option value="blue">כחול</option>
+                                <option value="green">ירוק</option>
+                            </select>
+                        </div>
+                        <!-- Canvas -->
+                        <div class="flex-grow bg-[#f3f2f1] overflow-auto p-8 flex justify-center">
+                            <div id="word-editor" class="bg-white w-[21cm] min-h-[29.7cm] page-shadow p-[2.54cm] outline-none text-right" contenteditable="true">
+                                <h1 class="text-3xl font-bold mb-4 text-[#2b579a]">ברוכים הבאים ל-Word Pro</h1>
+                                <p>זוהי סימולציה מתקדמת של מעבד תמלילים.</p>
+                                <p>ניתן לערוך, <b>להדגיש</b>, <i>להטות</i> ולעצב את הטקסט כאוות נפשכם.</p>
+                                <ul><li>נסו את הרשימות</li><li>ואת הצבעים</li></ul>
+                                <br>
+                                <p>התחילו להקליד כאן...</p>
+                            </div>
+                        </div>
+                        <div class="bg-[#2b579a] text-white text-xs px-2 py-1 flex justify-between">
+                            <span>עמוד 1 מתוך 1</span>
+                            <span>עברית (ישראל)</span>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                id: 'excel', name: 'Excel Pro', icon: 'fa-file-excel', color: 'text-green-700',
+                w: 900, h: 600,
+                init: (id) => initExcel(id),
+                content: `
+                    <div class="flex flex-col h-full bg-white select-none">
+                        <div class="bg-[#217346] text-white px-4 py-2 text-sm flex justify-between">
+                            <span>Excel Pro - חוברת עבודה 1</span>
+                            <div class="flex gap-3 text-xs"><span>_</span><span>▢</span><span>X</span></div>
+                        </div>
+                        <div class="bg-gray-100 p-2 border-b flex gap-2 text-sm items-center">
+                            <div class="bg-white border px-2 py-1 w-20 text-center font-mono" id="excel-active-cell">A1</div>
+                            <div class="font-serif italic text-gray-500 font-bold">fx</div>
+                            <input type="text" id="excel-formula-bar" class="flex-grow border px-2 py-1 bg-white outline-none focus:border-green-500" placeholder="הכנס נתונים או נוסחה (=)">
+                        </div>
+                        <div id="excel-container" class="flex-grow bg-white relative"></div>
+                        <div class="bg-gray-100 border-t p-1 flex gap-2 text-xs items-end">
+                            <button class="bg-white px-4 py-1 border-t-2 border-green-600 font-bold shadow text-green-700">גיליון1</button>
+                            <button class="px-3 py-1 hover:bg-gray-200 rounded-full"><i class="fas fa-plus"></i></button>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                id: 'ppt', name: 'PowerPoint Pro', icon: 'fa-file-powerpoint', color: 'text-orange-600',
+                w: 900, h: 650,
+                init: (id) => initPPT(id),
+                content: `
+                    <div class="flex flex-col h-full bg-white">
+                        <div class="bg-[#b7472a] text-white px-4 py-2 text-sm flex justify-between">
+                            <span>PowerPoint Pro - מצגת 1</span>
+                        </div>
+                        <div class="bg-gray-100 p-2 border-b flex gap-4 text-sm">
+                            <button class="flex flex-col items-center hover:bg-gray-200 p-1 rounded" onclick="pptAddSlide()">
+                                <i class="fas fa-plus-square text-orange-600 text-lg"></i>
+                                <span class="text-xs">שקופית חדשה</span>
+                            </button>
+                             <button class="flex flex-col items-center hover:bg-gray-200 p-1 rounded" onclick="alert('מפעיל מצגת...')">
+                                <i class="fas fa-play text-green-600 text-lg"></i>
+                                <span class="text-xs">הצג</span>
+                            </button>
+                        </div>
+                        <div class="flex flex-grow overflow-hidden">
+                            <!-- Sidebar -->
+                            <div class="w-48 bg-gray-100 border-l p-4 flex flex-col gap-4 overflow-y-auto" id="ppt-sidebar">
+                                <!-- Slides injected here -->
+                            </div>
+                            <!-- Main Stage -->
+                            <div class="flex-grow bg-gray-200 p-10 flex items-center justify-center">
+                                <div id="ppt-stage" class="bg-white aspect-video w-full shadow-2xl p-12 flex flex-col justify-center items-center text-center outline-none border border-gray-300" contenteditable="true">
+                                    <!-- Active Slide Content -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            
+            // === EMULATORS ===
+            {
+                id: 'android', name: 'Android Emulator', icon: 'fa-robot', color: 'text-green-500',
+                w: 360, h: 700,
+                init: (id) => initAndroid(id),
+                content: `
+                    <div class="android-device">
+                        <!-- Screen -->
+                        <div class="android-screen">
+                            <!-- Status Bar -->
+                            <div class="bg-black/20 text-white text-[10px] px-3 py-1 flex justify-between items-center z-50">
+                                <span>12:30</span>
+                                <div class="flex gap-1"><i class="fas fa-wifi"></i> <i class="fas fa-battery-three-quarters"></i></div>
+                            </div>
+                            
+                            <!-- Home Screen Content -->
+                            <div id="android-home" class="flex flex-col h-full p-4 animate-fade-in">
+                                <!-- Clock Widget -->
+                                <div class="mt-8 text-center text-white drop-shadow-md">
+                                    <div class="text-5xl font-thin">12:30</div>
+                                    <div class="text-sm opacity-80">יום ראשון, 1 בינואר</div>
+                                </div>
+                                
+                                <!-- App Grid -->
+                                <div class="mt-auto grid grid-cols-4 gap-4 mb-4">
+                                    <div class="flex flex-col items-center gap-1 cursor-pointer transform hover:scale-105 transition" onclick="openAndroidApp('dialer')">
+                                        <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-phone"></i></div>
+                                        <span class="text-white text-[10px] shadow-black drop-shadow-md">טלפון</span>
+                                    </div>
+                                    <div class="flex flex-col items-center gap-1 cursor-pointer transform hover:scale-105 transition" onclick="openAndroidApp('messages')">
+                                        <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-comment-alt"></i></div>
+                                        <span class="text-white text-[10px] drop-shadow-md">הודעות</span>
+                                    </div>
+                                    <div class="flex flex-col items-center gap-1 cursor-pointer transform hover:scale-105 transition" onclick="openAndroidApp('camera')">
+                                        <div class="w-12 h-12 bg-gray-300 rounded-xl flex items-center justify-center text-gray-800 text-xl shadow-lg"><i class="fas fa-camera"></i></div>
+                                        <span class="text-white text-[10px] drop-shadow-md">מצלמה</span>
+                                    </div>
+                                    <div class="flex flex-col items-center gap-1 cursor-pointer transform hover:scale-105 transition" onclick="openAndroidApp('calculator')">
+                                        <div class="w-12 h-12 bg-orange-400 rounded-xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-calculator"></i></div>
+                                        <span class="text-white text-[10px] drop-shadow-md">מחשבון</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Dock -->
+                                <div class="bg-white/20 backdrop-blur-md rounded-2xl p-2 flex justify-around items-center mb-2">
+                                     <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 cursor-pointer" onclick="openAndroidApp('browser')"><i class="fab fa-chrome"></i></div>
+                                     <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white cursor-pointer" onclick="openAndroidApp('whatsapp')"><i class="fab fa-whatsapp"></i></div>
+                                     <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-red-600 cursor-pointer"><i class="fab fa-youtube"></i></div>
+                                     <div class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-white cursor-pointer"><i class="fas fa-cog"></i></div>
+                                </div>
+                            </div>
+
+                            <!-- Internal Apps (Hidden by default) -->
+                            
+                            <!-- Dialer App -->
+                            <div id="android-app-dialer" class="android-app-view bg-white text-gray-800">
+                                <div class="p-4 bg-gray-100 font-bold border-b">טלפון</div>
+                                <div class="flex-grow flex flex-col justify-end p-6">
+                                    <div id="dialer-display" class="text-3xl text-center mb-6 h-10 border-b border-gray-300"></div>
+                                    <div class="grid grid-cols-3 gap-4 text-center text-2xl font-light">
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(1)">1</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(2)">2</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(3)">3</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(4)">4</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(5)">5</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(6)">6</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(7)">7</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(8)">8</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(9)">9</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200 text-sm flex items-center justify-center">*</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200" onclick="dial(0)">0</div>
+                                        <div class="p-2 bg-gray-100 rounded-full cursor-pointer hover:bg-gray-200 text-sm flex items-center justify-center">#</div>
+                                    </div>
+                                    <div class="mt-6 flex justify-center">
+                                        <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl shadow-lg cursor-pointer hover:bg-green-600"><i class="fas fa-phone"></i></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Calculator App -->
+                            <div id="android-app-calculator" class="android-app-view bg-gray-900 text-white">
+                                <div class="flex-grow flex items-end justify-end p-6 text-5xl font-thin break-all" id="and-calc-disp">0</div>
+                                <div class="grid grid-cols-4 gap-1 p-2">
+                                    <button class="p-4 bg-gray-700 rounded-full" onclick="andCalc('C')">C</button>
+                                    <button class="p-4 bg-gray-700 rounded-full" onclick="andCalc('/')">÷</button>
+                                    <button class="p-4 bg-gray-700 rounded-full" onclick="andCalc('*')">×</button>
+                                    <button class="p-4 bg-orange-500 rounded-full" onclick="andCalc('del')">⌫</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(7)">7</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(8)">8</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(9)">9</button>
+                                    <button class="p-4 bg-orange-500 rounded-full" onclick="andCalc('-')">-</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(4)">4</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(5)">5</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc(6)">6</button>
+                                    <button class="p-4 bg-orange-500 rounded-full" onclick="andCalc('+')">+</button>
+                                    <button class="p-4 bg-gray-800 rounded-full col-span-2" onclick="andCalc(0)">0</button>
+                                    <button class="p-4 bg-gray-800 rounded-full" onclick="andCalc('.')">.</button>
+                                    <button class="p-4 bg-orange-500 rounded-full" onclick="andCalc('=')">=</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Browser App -->
+                            <div id="android-app-browser" class="android-app-view bg-white">
+                                <div class="p-2 border-b flex gap-2 items-center bg-gray-100">
+                                    <i class="fas fa-lock text-green-600 text-xs"></i>
+                                    <div class="flex-grow bg-white rounded-full px-3 py-1 text-xs text-gray-600 border">google.com</div>
+                                    <i class="fas fa-ellipsis-v text-gray-500"></i>
+                                </div>
+                                <div class="flex-grow flex flex-col items-center justify-center p-4">
+                                    <span class="text-4xl font-bold mb-4 text-blue-500"><span class="text-blue-500">G</span><span class="text-red-500">o</span><span class="text-yellow-500">o</span><span class="text-blue-500">g</span><span class="text-green-500">l</span><span class="text-red-500">e</span></span>
+                                    <input type="text" class="w-full border rounded-full px-4 py-2 shadow-inner" placeholder="חיפוש...">
+                                </div>
+                            </div>
+
+                             <!-- WhatsApp App -->
+                            <div id="android-app-whatsapp" class="android-app-view bg-white">
+                                <div class="bg-[#075e54] text-white p-3 flex justify-between items-center shadow">
+                                    <span class="font-bold">WhatsApp</span>
+                                    <div class="flex gap-4 text-lg"><i class="fas fa-search"></i><i class="fas fa-ellipsis-v"></i></div>
+                                </div>
+                                <div class="bg-[#128c7e] text-white flex text-xs font-bold uppercase py-2">
+                                    <div class="w-10 flex justify-center"><i class="fas fa-camera"></i></div>
+                                    <div class="flex-grow text-center border-b-2 border-white">צ'אטים</div>
+                                    <div class="flex-grow text-center text-white/60">סטטוס</div>
+                                    <div class="flex-grow text-center text-white/60">שיחות</div>
+                                </div>
+                                <div class="flex-grow overflow-y-auto">
+                                    <!-- Chat Items -->
+                                    <div class="flex items-center gap-3 p-3 border-b hover:bg-gray-50 cursor-pointer">
+                                        <div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center"><i class="fas fa-user"></i></div>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between"><span class="font-bold">אבא</span><span class="text-xs text-green-600">12:00</span></div>
+                                            <div class="text-sm text-gray-500">מתי אתה מגיע?</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-3 p-3 border-b hover:bg-gray-50 cursor-pointer">
+                                        <div class="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center text-blue-600"><i class="fas fa-users"></i></div>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between"><span class="font-bold">משפחה</span><span class="text-xs text-gray-400">אתמול</span></div>
+                                            <div class="text-sm text-gray-500">אמא: שבת שלום לכולם!</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <!-- Navigation Bar -->
+                            <div class="bg-black py-3 flex justify-around items-center text-gray-400 text-xl z-50">
+                                <i class="fas fa-bars cursor-pointer hover:text-white"></i>
+                                <i class="fas fa-square cursor-pointer hover:text-white" onclick="closeAndroidApps()"></i>
+                                <i class="fas fa-arrow-left cursor-pointer hover:text-white" onclick="closeAndroidApps()"></i>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            {
+                id: 'mac', name: 'macOS Ventura', icon: 'fa-laptop-code', color: 'text-gray-700',
+                w: 800, h: 500,
+                init: (id) => initMac(id),
+                content: `
+                    <div class="flex flex-col h-full bg-black relative select-none">
+                        <!-- Mac Menu Bar -->
+                        <div class="h-7 bg-white/40 backdrop-blur-md flex items-center px-4 justify-between text-xs text-white font-semibold shadow-sm z-50">
+                            <div class="flex gap-4">
+                                <i class="fab fa-apple text-sm cursor-pointer hover:opacity-75"></i>
+                                <span class="cursor-pointer font-bold">Finder</span>
+                                <span class="cursor-pointer">File</span>
+                                <span class="cursor-pointer">Edit</span>
+                                <span class="cursor-pointer">View</span>
+                                <span class="cursor-pointer">Go</span>
+                                <span class="cursor-pointer">Window</span>
+                                <span class="cursor-pointer">Help</span>
+                            </div>
+                            <div class="flex gap-4">
+                                <i class="fas fa-search cursor-pointer"></i>
+                                <i class="fas fa-wifi"></i>
+                                <span>100%</span>
+                                <span>Sun 12:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Mac Desktop Area -->
+                        <div class="mac-screen" id="mac-desktop">
+                            
+                            <!-- Safari Window -->
+                            <div id="mac-app-safari" class="mac-window w-[500px] h-[350px] top-[50px] right-[100px]" onmousedown="macBringToFront(this)">
+                                <div class="bg-[#eaeaea] p-2 flex gap-4 items-center border-b">
+                                    <div class="flex gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onclick="closeMacApp('safari')"></div>
+                                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    </div>
+                                    <div class="bg-white rounded-md flex-grow text-center text-xs py-1 text-gray-500 shadow-sm flex items-center justify-center gap-2">
+                                        <i class="fas fa-lock text-[10px]"></i> apple.com
+                                    </div>
+                                </div>
+                                <div class="bg-white flex-grow p-10 flex flex-col items-center justify-center text-center">
+                                    <i class="fab fa-apple text-6xl mb-4 text-gray-800"></i>
+                                    <h1 class="text-2xl font-bold">MacBook Pro</h1>
+                                    <p class="text-gray-500 mt-2">Supercharged by M2 Pro and M2 Max.</p>
+                                    <button class="mt-4 bg-blue-600 text-white px-4 py-1 rounded-full text-sm">Buy Now</button>
+                                </div>
+                            </div>
+
+                            <!-- Terminal Window -->
+                            <div id="mac-app-terminal" class="mac-window w-[400px] h-[300px] top-[100px] right-[300px] bg-[#1e1e1e] text-white font-mono text-sm" onmousedown="macBringToFront(this)">
+                                <div class="bg-[#2d2d2d] p-2 flex gap-2 items-center border-b border-gray-700">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onclick="closeMacApp('terminal')"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="ml-2 text-xs text-gray-400">user@macbook-pro ~ zsh</span>
+                                </div>
+                                <div class="p-2">
+                                    <p>Last login: Sun Jan 1 12:00:00 on ttys000</p>
+                                    <p class="text-green-400">user@macbook-pro ~ % <span class="text-white">echo "Hello World"</span></p>
+                                    <p>Hello World</p>
+                                    <p class="text-green-400">user@macbook-pro ~ % <span class="animate-pulse">_</span></p>
+                                </div>
+                            </div>
+
+                            <!-- Notes Window -->
+                             <div id="mac-app-notes" class="mac-window w-[300px] h-[400px] top-[40px] right-[500px]" onmousedown="macBringToFront(this)">
+                                <div class="bg-white p-2 flex gap-2 items-center border-b">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onclick="closeMacApp('notes')"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
+                                <div class="flex-grow flex bg-white">
+                                    <div class="w-1/3 bg-gray-50 border-l p-2">
+                                        <div class="font-bold text-xs text-gray-500 mb-2">iCloud</div>
+                                        <div class="bg-[#fcd34d] p-2 rounded-md shadow-sm text-xs font-bold mb-2">New Note</div>
+                                        <div class="p-2 text-xs text-gray-500">Ideas</div>
+                                    </div>
+                                    <div class="w-2/3 p-4 outline-none" contenteditable="true">
+                                        <h1 class="font-bold text-lg mb-2">Meeting Notes</h1>
+                                        <p class="text-sm text-gray-600">- Discuss project timeline</p>
+                                        <p class="text-sm text-gray-600">- Review budget</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dock -->
+                        <div class="mac-dock">
+                            <div class="mac-dock-icon bg-blue-500 text-white" onclick="openMacApp('finder')"><i class="fas fa-smile"></i></div>
+                            <div class="mac-dock-icon bg-gray-100 text-blue-500" onclick="openMacApp('safari')"><i class="fab fa-safari"></i></div>
+                            <div class="mac-dock-icon bg-yellow-400 text-white" onclick="openMacApp('notes')"><i class="fas fa-sticky-note"></i></div>
+                            <div class="mac-dock-icon bg-gray-800 text-white" onclick="openMacApp('terminal')"><i class="fas fa-terminal"></i></div>
+                            <div class="w-px h-10 bg-white/30 mx-1"></div>
+                            <div class="mac-dock-icon bg-gray-500 text-white"><i class="fas fa-trash"></i></div>
+                        </div>
+                    </div>
+                `
+            },
+            
+            // === Basic Apps ===
+            { id: 'paint', name: 'צייר', icon: 'fa-palette', color: 'text-purple-600', w: 600, h: 450, init: (id) => initPaint(id), content: `<div class="flex flex-col h-full"><div class="bg-gray-200 p-2 flex gap-2 border-b"><input type="color" id="p-c"><input type="range" id="p-s" min="1" max="20" value="3"><button onclick="clearPaint()" class="bg-white px-2 rounded border">נקה</button></div><div id="p-con" class="flex-grow bg-white cursor-crosshair overflow-hidden"><canvas id="p-can"></canvas></div></div>` },
+            { id: 'calc', name: 'מחשבון', icon: 'fa-calculator', color: 'text-gray-600', w: 300, h: 400, content: `<div class="flex flex-col h-full bg-gray-100 p-2"><input id="c-d" class="w-full text-2xl p-2 mb-2 rounded bg-white border text-left" readonly value="0"><div class="grid grid-cols-4 gap-1 flex-grow"><button class="bg-red-100 text-red-600 rounded" onclick="cIn('C')">C</button><button class="bg-white rounded" onclick="cIn('/')">/</button><button class="bg-white rounded" onclick="cIn('*')">x</button><button class="bg-white rounded" onclick="cIn('del')"><i class="fas fa-backspace"></i></button><button class="bg-white rounded" onclick="cIn('7')">7</button><button class="bg-white rounded" onclick="cIn('8')">8</button><button class="bg-white rounded" onclick="cIn('9')">9</button><button class="bg-white rounded" onclick="cIn('-')">-</button><button class="bg-white rounded" onclick="cIn('4')">4</button><button class="bg-white rounded" onclick="cIn('5')">5</button><button class="bg-white rounded" onclick="cIn('6')">6</button><button class="bg-white rounded" onclick="cIn('+')">+</button><button class="bg-white rounded" onclick="cIn('1')">1</button><button class="bg-white rounded" onclick="cIn('2')">2</button><button class="bg-white rounded" onclick="cIn('3')">3</button><button class="bg-blue-600 text-white rounded row-span-2" onclick="cIn('=')">=</button><button class="bg-white rounded col-span-2" onclick="cIn('0')">0</button><button class="bg-white rounded" onclick="cIn('.')">.</button></div></div>` }
+        ];
+
+        // --- Core Functions ---
+        window.onload = () => setTimeout(() => { document.getElementById('boot-screen').style.display = 'none'; document.getElementById('login-screen').style.display = 'flex'; }, 2500);
+        function login() {
+            document.getElementById('login-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('login-screen').style.display = 'none'; document.getElementById('desktop-env').style.display = 'block'; initSystem(); }, 800);
+        }
+        function initSystem() {
+            const icons = document.getElementById('desktop-icons');
+            const menu = document.getElementById('start-menu-items');
+            apps.forEach(app => {
+                // Desktop Icon
+                let div = document.createElement('div');
+                div.className = 'w-20 h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-white/10 rounded-md transition text-white drop-shadow-md';
+                div.innerHTML = `<i class="fas ${app.icon} text-4xl mb-2 ${app.color.replace('text-', 'text-shadow-')}"></i><span class="text-xs text-center leading-tight shadow-black">${app.name}</span>`;
+                div.ondblclick = () => openWindow(app.id);
+                icons.appendChild(div);
+                // Start Menu Item
+                let item = document.createElement('div');
+                item.className = 'flex items-center gap-3 p-2 hover:bg-blue-100 rounded cursor-pointer transition text-gray-700';
+                item.innerHTML = `<div class="w-8 h-8 flex items-center justify-center bg-gray-100 rounded border"><i class="fas ${app.icon} ${app.color}"></i></div><span class="font-medium text-sm">${app.name}</span>`;
+                item.onclick = () => { openWindow(app.id); toggleStartMenu(); };
+                menu.appendChild(item);
+            });
+            setInterval(updateClock, 1000);
+        }
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock-time').innerText = now.toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+            document.getElementById('clock-date').innerText = now.toLocaleDateString('he-IL');
+        }
+        function toggleStartMenu() { document.getElementById('start-menu').classList.toggle('active'); }
+        function systemAction(act) {
+            document.getElementById('desktop-env').style.display = 'none';
+            const boot = document.getElementById('boot-screen');
+            boot.style.display = 'flex';
+            boot.innerHTML = act === 'restart' ? `<div class="loader"></div><div>מפעיל מחדש...</div>` : `<div>להתראות!</div>`;
+            if(act === 'restart') setTimeout(() => location.reload(), 2000);
+        }
+
+        // --- Window Manager ---
+        function openWindow(appId) {
+            const app = apps.find(a => a.id === appId);
+            const id = appId + '-' + Date.now();
+            zIndex++;
+            
+            // Taskbar
+            const taskbar = document.getElementById('taskbar-apps');
+            const task = document.createElement('div');
+            task.className = 'task-item active';
+            task.id = 'task-' + id;
+            task.innerHTML = `<i class="fas ${app.icon} ${app.color}"></i> <span class="truncate">${app.name}</span>`;
+            task.onclick = () => {
+                const w = document.getElementById(id);
+                if(w.style.display === 'none') { w.style.display = 'flex'; w.style.zIndex = ++zIndex; }
+                else if(w.style.zIndex < zIndex) { w.style.zIndex = ++zIndex; }
+                else { w.style.display = 'none'; task.classList.remove('active'); return; }
+                task.classList.add('active');
+            };
+            taskbar.appendChild(task);
+
+            // Window
+            const win = document.createElement('div');
+            win.className = 'window';
+            win.id = id;
+            win.style.width = app.w + 'px'; win.style.height = app.h + 'px';
+            win.style.zIndex = zIndex;
+            win.style.top = (50 + Math.random()*50) + 'px'; win.style.right = (50 + Math.random()*50) + 'px';
+            win.innerHTML = `
+                <div class="window-header" onmousedown="dragStart(event, '${id}')">
+                    <div class="flex items-center gap-2 font-bold text-xs"><i class="fas ${app.icon} ${app.color}"></i> ${app.name}</div>
+                    <div class="flex gap-2">
+                        <div class="w-3 h-3 rounded-full bg-yellow-400 cursor-pointer hover:opacity-80" onclick="minWin('${id}')"></div>
+                        <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer hover:opacity-80" onclick="closeWin('${id}')"></div>
+                    </div>
+                </div>
+                <div class="window-content">${app.content}</div>
+            `;
+            win.onmousedown = () => { win.style.zIndex = ++zIndex; document.querySelectorAll('.task-item').forEach(t=>t.classList.remove('active')); document.getElementById('task-'+id).classList.add('active'); };
+            document.getElementById('windows-container').appendChild(win);
+            if(app.init) setTimeout(() => app.init(id), 50);
+        }
+
+        function closeWin(id) { document.getElementById(id).remove(); document.getElementById('task-'+id).remove(); }
+        function minWin(id) { document.getElementById(id).style.display = 'none'; document.getElementById('task-'+id).classList.remove('active'); }
+
+        // --- Dragging ---
+        let dragInfo = null;
+        function dragStart(e, id) {
+            dragInfo = { id: id, x: e.clientX, y: e.clientY, w: document.getElementById(id) };
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('mouseup', dragEnd);
+        }
+        function dragMove(e) {
+            if(!dragInfo) return;
+            const dx = dragInfo.x - e.clientX; // RTL invert
+            const dy = e.clientY - dragInfo.y;
+            const rect = dragInfo.w.getBoundingClientRect();
+            dragInfo.w.style.right = (document.body.clientWidth - rect.right - dx) + 'px';
+            dragInfo.w.style.top = (rect.top + dy) + 'px';
+            dragInfo.x = e.clientX; dragInfo.y = e.clientY;
+        }
+        function dragEnd() { dragInfo = null; document.removeEventListener('mousemove', dragMove); document.removeEventListener('mouseup', dragEnd); }
+
+        // --- Word Logic ---
+        function formatDoc(cmd, val=null) { document.execCommand(cmd, false, val); document.getElementById('word-editor').focus(); }
+
+        // --- Excel Logic ---
+        function initExcel(id) {
+            const win = document.getElementById(id);
+            const container = win.querySelector('#excel-container');
+            const formulaBar = win.querySelector('#excel-formula-bar');
+            const activeCellDisplay = win.querySelector('#excel-active-cell');
+            
+            let grid = document.createElement('div');
+            grid.className = 'excel-grid';
+            
+            // Header Row
+            grid.innerHTML += `<div class="excel-header"></div>`;
+            for(let c=0; c<10; c++) grid.innerHTML += `<div class="excel-header">${String.fromCharCode(65+c)}</div>`;
+            
+            // Cells
+            for(let r=1; r<=20; r++) {
+                grid.innerHTML += `<div class="excel-header">${r}</div>`;
+                for(let c=0; c<10; c++) {
+                    let cellId = String.fromCharCode(65+c) + r;
+                    let input = document.createElement('input');
+                    input.className = 'excel-cell';
+                    input.dataset.cell = cellId;
+                    input.onfocus = () => { activeCellDisplay.innerText = cellId; formulaBar.value = input.value; };
+                    input.oninput = () => { if(!input.value.startsWith('=')) formulaBar.value = input.value; };
+                    input.onblur = () => calculateAllExcel(win);
+                    grid.appendChild(input);
+                }
+            }
+            container.appendChild(grid);
+            
+            formulaBar.onkeyup = (e) => {
+                if(e.key === 'Enter') {
+                    const activeId = activeCellDisplay.innerText;
+                    const cell = win.querySelector(`input[data-cell="${activeId}"]`);
+                    if(cell) { cell.value = formulaBar.value; calculateAllExcel(win); }
+                }
+            };
+        }
+        function calculateAllExcel(win) {
+            const cells = win.querySelectorAll('.excel-cell');
+            const data = {};
+            cells.forEach(c => data[c.dataset.cell] = isNaN(parseFloat(c.value)) ? 0 : parseFloat(c.value));
+            
+            cells.forEach(c => {
+                if(c.value.startsWith('=')) {
+                    try {
+                        let expr = c.value.substring(1).toUpperCase();
+                        // Simple ref replacement (e.g. A1 -> 5)
+                        for(let key in data) { expr = expr.replaceAll(key, data[key]); }
+                        c.value = eval(expr);
+                    } catch(e) { c.value = '#ERR'; }
+                }
+            });
+        }
+
+        // --- PPT Logic ---
+        let pptSlides = [
+            { title: "מצגת חדשה", subtitle: "כותרת משנה", content: "" },
+            { title: "אג'נדה", subtitle: "1. פתיחה\n2. סקירה\n3. סיכום", content: "" }
+        ];
+        function initPPT(id) {
+            const win = document.getElementById(id);
+            renderPPTSidebar(win);
+            renderPPTStage(win, 0);
+            win.dataset.currentSlide = 0;
+            window.activePPT = win;
+        }
+        function pptAddSlide() {
+            pptSlides.push({ title: "שקופית חדשה", subtitle: "הוסף טקסט", content: "" });
+            if(window.activePPT) { renderPPTSidebar(window.activePPT); renderPPTStage(window.activePPT, pptSlides.length-1); }
+        }
+        function renderPPTSidebar(win) {
+            const sb = win.querySelector('#ppt-sidebar');
+            sb.innerHTML = '';
+            pptSlides.forEach((s, i) => {
+                let d = document.createElement('div');
+                d.className = `bg-white border aspect-video shadow-sm p-2 text-[6px] overflow-hidden slide-preview ${i==win.dataset.currentSlide?'active-slide':''}`;
+                d.innerHTML = `<b>${s.title}</b><br>${s.subtitle}`;
+                d.onclick = () => { win.dataset.currentSlide = i; renderPPTSidebar(win); renderPPTStage(win, i); };
+                sb.appendChild(d);
+            });
+        }
+        function renderPPTStage(win, idx) {
+            const s = pptSlides[idx];
+            win.querySelector('#ppt-stage').innerHTML = `
+                <h1 class="text-4xl font-bold mb-4 text-gray-800 border border-dashed border-transparent hover:border-gray-400 p-2" contenteditable="true" onblur="pptSlides[${idx}].title=this.innerText">${s.title}</h1>
+                <div class="text-xl text-gray-500 whitespace-pre-wrap border border-dashed border-transparent hover:border-gray-400 p-2" contenteditable="true" onblur="pptSlides[${idx}].subtitle=this.innerText">${s.subtitle}</div>
+            `;
+        }
+
+        // --- Android Logic ---
+        function initAndroid(id) { window.currentAndroidId = id; }
+        function openAndroidApp(appName) {
+            const win = document.getElementById(window.currentAndroidId);
+            win.querySelector('#android-home').style.display = 'none';
+            const app = win.querySelector(`#android-app-${appName}`);
+            if(app) app.style.display = 'flex';
+        }
+        function closeAndroidApps() {
+            const win = document.getElementById(window.currentAndroidId);
+            win.querySelectorAll('.android-app-view').forEach(v => v.style.display = 'none');
+            win.querySelector('#android-home').style.display = 'flex';
+        }
+        function dial(n) { const d = document.getElementById('dialer-display'); d.innerText += n; }
+        function andCalc(v) {
+            const d = document.getElementById('and-calc-disp');
+            if(v==='C') d.innerText = '0';
+            else if(v==='del') d.innerText = d.innerText.slice(0,-1) || '0';
+            else if(v==='=') { try { d.innerText = eval(d.innerText); } catch { d.innerText = 'Error'; } }
+            else { if(d.innerText === '0') d.innerText = v; else d.innerText += v; }
+        }
+
+        // --- Mac Logic ---
+        function initMac(id) { window.currentMacId = id; }
+        function openMacApp(appName) {
+            if(appName === 'finder') return; // Just for show
+            const win = document.getElementById(window.currentMacId);
+            const app = win.querySelector(`#mac-app-${appName}`);
+            if(app) { app.style.display = 'flex'; macBringToFront(app); }
+        }
+        function closeMacApp(appName) {
+             const win = document.getElementById(window.currentMacId);
+             win.querySelector(`#mac-app-${appName}`).style.display = 'none';
+        }
+        function macBringToFront(el) {
+            const win = document.getElementById(window.currentMacId);
+            win.querySelectorAll('.mac-window').forEach(w => w.style.zIndex = 10);
+            el.style.zIndex = 20;
+        }
+
+        // --- Simple Paint & Calc ---
+        function initPaint(id) {
+            const c = document.getElementById(id).querySelector('canvas');
+            const ctx = c.getContext('2d');
+            const con = document.getElementById(id).querySelector('#p-con');
+            c.width = con.clientWidth; c.height = con.clientHeight;
+            let painting = false;
+            c.onmousedown = (e) => { painting=true; draw(e); };
+            c.onmouseup = () => { painting=false; ctx.beginPath(); };
+            c.onmousemove = draw;
+            function draw(e) {
+                if(!painting) return;
+                const rect = c.getBoundingClientRect();
+                ctx.lineWidth = document.getElementById(id).querySelector('#p-s').value;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = document.getElementById(id).querySelector('#p-c').value;
+                ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            }
+        }
+        function clearPaint() {
+            const c = document.querySelector('.window[style*="block"] canvas') || document.querySelector('canvas');
+            if(c) c.getContext('2d').clearRect(0,0,c.width,c.height);
+        }
+        function cIn(v) {
+            const d = document.getElementById('c-d');
+            if(v==='C') d.value='0'; else if(v==='del') d.value=d.value.slice(0,-1)||'0'; 
+            else if(v==='=') { try{d.value=eval(d.value)}catch{d.value='Err'} } 
+            else { if(d.value==='0') d.value=v; else d.value+=v; }
+        }
+
+    </script>
+</body>
+</html>
