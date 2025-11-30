@@ -16,14 +16,6 @@
             --hover-bg: rgba(0,0,0,0.05);
         }
         
-        .dark-mode {
-            --bg-glass: rgba(30, 30, 30, 0.85);
-            --bg-window: rgba(32, 32, 32, 0.95);
-            --text-color: #fff;
-            --border-color: rgba(255,255,255,0.1);
-            --hover-bg: rgba(255,255,255,0.1);
-        }
-
         body {
             overflow: hidden;
             font-family: 'Segoe UI Variable', 'Segoe UI', Tahoma, sans-serif;
@@ -54,6 +46,8 @@
         /* Animations */
         @keyframes winPop { 0% { transform: scale(0.95) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(100%) translateX(-50%); } to { transform: translateY(0) translateX(-50%); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
 
         /* Wallpaper */
         .desktop-bg {
@@ -75,13 +69,14 @@
             resize: both;
             background: var(--bg-window);
             color: var(--text-color);
+            pointer-events: auto; /* IMPORTANT: Windows capture clicks */
         }
         .window-header {
             height: 40px;
             display: flex; justify-content: space-between; align-items: center;
             cursor: default; 
             background: transparent;
-            /* border-bottom: 1px solid var(--border-color); */
+            border-bottom: 1px solid var(--border-color);
         }
         .win-controls { display: flex; height: 100%; }
         .win-btn {
@@ -101,6 +96,7 @@
             border-radius: 4px; transition: background 0.2s;
             color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
             cursor: pointer;
+            z-index: 10; /* Ensure clickable */
         }
         .desktop-icon:hover { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }
         .desktop-icon.selected { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); }
@@ -145,9 +141,26 @@
         }
         .start-menu.active { display: flex; }
 
-        /* Emulators */
-        .android-frame { background: #1f2937; border-radius: 24px; padding: 8px; border: 4px solid #374151; height: 100%; display: flex; flex-direction: column; }
-        .mac-frame { background: #000; height: 100%; display: flex; flex-direction: column; }
+        /* Android Emulator */
+        .android-frame { background: #111; border-radius: 30px; padding: 10px; border: 2px solid #333; height: 100%; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .android-screen { flex-grow: 1; background: black; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        .android-app { display: none; width: 100%; height: 100%; background: white; flex-direction: column; animation: fadeIn 0.2s; flex-grow: 1; overflow: hidden;}
+        .android-app.active { display: flex; }
+        
+        /* Mac Emulator */
+        .mac-frame { display: flex; flex-direction: column; height: 100%; position: relative; overflow: hidden; background: #333; }
+        .mac-desktop { flex-grow: 1; position: relative; background: url('https://images.unsplash.com/photo-1496664444929-8c75efb9546f?w=800') center/cover; }
+        .mac-window-vm { position: absolute; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: none; flex-direction: column; }
+        .mac-dock { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 8px; border-radius: 16px; display: flex; gap: 8px; border: 1px solid rgba(255,255,255,0.2); }
+        .mac-dock-icon { width: 40px; height: 40px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+        .mac-dock-icon:hover { transform: scale(1.1) translateY(-5px); }
+
+        /* Explorer Grid */
+        .file-item { display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 4px; cursor: pointer; text-align: center; width: 90px; }
+        .file-item:hover { background: rgba(0,0,0,0.05); }
+        .file-item.selected { background: #cce8ff; border: 1px solid #99d1ff; }
+        .tree-node { padding: 4px 8px; cursor: pointer; display: flex; gap: 6px; align-items: center; border-radius: 4px; }
+        .tree-node:hover { background: rgba(0,0,0,0.05); }
 
         /* Office Ribbon */
         .ribbon { display: flex; gap: 10px; padding: 8px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; align-items: center; }
@@ -173,6 +186,7 @@
         <div id="wallpaper" class="desktop-bg" style="background-image: url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1920&q=80');"></div>
 
         <div id="desktop-icons-layer" class="absolute top-0 left-0 w-full h-full z-10"></div>
+        <!-- IMPORTANT: pointer-events-none ensures clicks pass through to icons when no window is hit -->
         <div id="windows-container" class="absolute top-0 left-0 w-full h-full z-20 pointer-events-none"></div>
 
         <!-- Start Menu -->
@@ -210,15 +224,105 @@
     </div>
 
     <script>
-        // --- Virtual File System ---
-        const vfs = {
-            'Documents': {
-                'Project_Alpha.docx': { app: 'word', content: '<h1>Project Alpha</h1><p>Confidential content.</p>' },
-                'Budget_2025.xlsx': { app: 'excel', content: '' }
+        // --- Virtual File System (VFS) Core ---
+        class VirtualFileSystem {
+            constructor() {
+                this.root = {
+                    type: 'folder',
+                    name: 'C:',
+                    children: {
+                        'Users': {
+                            type: 'folder', children: {
+                                'Admin': {
+                                    type: 'folder', children: {
+                                        'Desktop': { type: 'folder', children: {} },
+                                        'Documents': { 
+                                            type: 'folder', children: {
+                                                'Project.docx': { type: 'file', app: 'word', content: '<h1>Project Alpha</h1>' },
+                                                'Budget.xlsx': { type: 'file', app: 'excel', content: '' }
+                                            }
+                                        },
+                                        'Pictures': { type: 'folder', children: {
+                                            'Vacation.jpg': { type: 'file', app: 'gallery', content: '' }
+                                        } },
+                                        'Downloads': { type: 'folder', children: {
+                                            'Setup.exe': { type: 'file', app: 'cmd', content: '' }
+                                        } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                this.clipboard = null; 
             }
-        };
 
-        // --- State ---
+            resolve(pathArr) {
+                let curr = this.root;
+                for (let p of pathArr) {
+                    if (curr.children && curr.children[p]) curr = curr.children[p];
+                    else return null;
+                }
+                return curr;
+            }
+
+            write(pathArr, name, content, app) {
+                const dir = this.resolve(pathArr);
+                if (dir && dir.type === 'folder') {
+                    dir.children[name] = { type: 'file', content, app };
+                    return true;
+                }
+                return false;
+            }
+
+            copy(pathArr, name) {
+                const dir = this.resolve(pathArr);
+                if (dir && dir.children[name]) {
+                    this.clipboard = { action: 'copy', node: JSON.parse(JSON.stringify(dir.children[name])), name: name };
+                    return true;
+                }
+                return false;
+            }
+
+            cut(pathArr, name) {
+                const dir = this.resolve(pathArr);
+                if (dir && dir.children[name]) {
+                    this.clipboard = { action: 'move', node: dir.children[name], name: name, parent: dir };
+                    return true;
+                }
+                return false;
+            }
+
+            paste(pathArr) {
+                if (!this.clipboard) return false;
+                const dir = this.resolve(pathArr);
+                if (dir && dir.type === 'folder') {
+                    let newName = this.clipboard.name;
+                    let counter = 1;
+                    while(dir.children[newName]) { 
+                        const parts = this.clipboard.name.split('.');
+                        if(parts.length > 1) {
+                            const ext = parts.pop();
+                            newName = parts.join('.') + ` (${counter}).` + ext;
+                        } else {
+                            newName = this.clipboard.name + ` (${counter})`;
+                        }
+                        counter++; 
+                    }
+                    
+                    dir.children[newName] = this.clipboard.action === 'copy' ? JSON.parse(JSON.stringify(this.clipboard.node)) : this.clipboard.node;
+                    
+                    if (this.clipboard.action === 'move' && this.clipboard.parent) {
+                        delete this.clipboard.parent.children[this.clipboard.name];
+                        this.clipboard = null; 
+                    }
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        const vfs = new VirtualFileSystem();
         let zIndex = 100;
         let activeWindows = {};
         const systemState = {
@@ -227,9 +331,9 @@
             wallpaper: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1920&q=80'
         };
 
-        // --- Apps ---
+        // --- Apps Config ---
         const apps = [
-            { id: 'explorer', name: 'סייר הקבצים', icon: 'fa-folder-open', color: 'text-yellow-500', w: 800, h: 500, init: initExplorer },
+            { id: 'explorer', name: 'סייר הקבצים', icon: 'fa-folder-open', color: 'text-yellow-500', w: 850, h: 550, init: initExplorer },
             { id: 'word', name: 'Word', icon: 'fa-file-word', color: 'text-blue-600', w: 900, h: 650, init: initWord },
             { id: 'excel', name: 'Excel', icon: 'fa-file-excel', color: 'text-green-600', w: 900, h: 650, init: initExcel },
             { id: 'ppt', name: 'PowerPoint', icon: 'fa-file-powerpoint', color: 'text-orange-600', w: 900, h: 650, init: initPPT },
@@ -246,7 +350,7 @@
                 document.getElementById('boot-screen').style.display = 'none';
                 document.getElementById('desktop-env').style.display = 'block';
                 initDesktop();
-            }, 2000);
+            }, 1500);
         };
 
         function initDesktop() {
@@ -260,7 +364,7 @@
             }, 1000);
         }
 
-        // --- UI Rendering ---
+        // --- UI Rendering & Logic ---
         function renderDesktopIcons() {
             const container = document.getElementById('desktop-icons-layer');
             const icons = [
@@ -280,6 +384,34 @@
                 div.style.top = (20 + row * 106) + 'px';
                 div.style.right = (20 + col * 96) + 'px'; // RTL
                 div.innerHTML = `<i class="fas ${i.icon} text-3xl mb-2 ${i.color}"></i><span class="text-xs text-center leading-tight shadow-black">${i.label}</span>`;
+                
+                // Drag Logic
+                div.onmousedown = (e) => {
+                    if(e.button !== 0) return;
+                    div.classList.add('selected');
+                    // Calculate shift from mouse click to icon top-left
+                    const rect = div.getBoundingClientRect();
+                    let shiftX = e.clientX - rect.left;
+                    let shiftY = e.clientY - rect.top;
+                    
+                    function moveAt(pageX, pageY) {
+                        // Keep within bounds
+                        let newTop = pageY - shiftY;
+                        let newLeft = pageX - shiftX;
+                        
+                        div.style.top = newTop + 'px';
+                        div.style.left = newLeft + 'px'; 
+                        div.style.right = 'auto'; // Reset right since we use left for drag
+                    }
+                    function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
+                    document.addEventListener('mousemove', onMouseMove);
+                    div.onmouseup = () => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        div.onmouseup = null;
+                        div.classList.remove('selected');
+                    };
+                };
+
                 div.ondblclick = () => openWindow(i.app);
                 container.appendChild(div);
                 row++; if(row > 5) { row=0; col++; }
@@ -316,13 +448,11 @@
         }
 
         // --- Window Manager ---
-        function openWindow(appId) {
+        function openWindow(appId, content=null, filename=null, path=null) {
             const app = apps.find(a => a.id === appId);
             const id = appId + '_' + Date.now();
             zIndex++;
-            
-            // Pointer events for dragging
-            document.getElementById('windows-container').style.pointerEvents = 'auto';
+            // Note: We do NOT toggle pointerEvents on windows-container anymore. CSS handles it.
 
             const win = document.createElement('div');
             win.className = 'window glass';
@@ -331,13 +461,12 @@
             win.style.zIndex = zIndex;
             win.style.top = (50 + Math.random()*50) + 'px'; win.style.left = (50 + Math.random()*50) + 'px';
 
-            // Windows Style Header
             const header = document.createElement('div');
             header.className = 'window-header';
             header.innerHTML = `
                 <div class="flex items-center gap-3 px-3 text-sm font-semibold opacity-80">
                     <i class="fas ${app.icon}"></i>
-                    <span>${app.name}</span>
+                    <span>${filename ? filename + ' - ' : ''}${app.name}</span>
                 </div>
                 <div class="win-controls">
                     <div class="win-btn" onclick="minimizeWindow('${id}')"><i class="fas fa-minus"></i></div>
@@ -345,30 +474,30 @@
                     <div class="win-btn close" onclick="closeWindow('${id}')"><i class="fas fa-times"></i></div>
                 </div>
             `;
-            // Drag
+            
             header.onmousedown = (e) => {
                 if(e.target.closest('.win-btn')) return;
                 zIndex++; win.style.zIndex = zIndex;
                 let shiftX = e.clientX - win.getBoundingClientRect().left;
                 let shiftY = e.clientY - win.getBoundingClientRect().top;
                 function moveAt(pageX, pageY) {
-                    win.style.left = pageX - shiftX + 'px';
-                    win.style.top = pageY - shiftY + 'px';
+                    win.style.left = (pageX - shiftX) + 'px';
+                    win.style.top = (pageY - shiftY) + 'px';
                 }
                 function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
                 document.addEventListener('mousemove', onMouseMove);
                 header.onmouseup = () => { document.removeEventListener('mousemove', onMouseMove); header.onmouseup = null; };
             };
 
-            const content = document.createElement('div');
-            content.className = 'window-content';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'window-content';
             
             win.appendChild(header);
-            win.appendChild(content);
+            win.appendChild(contentDiv);
             document.getElementById('windows-container').appendChild(win);
             document.getElementById('task-'+appId).classList.add('active');
             
-            if(app.init) app.init(content, id);
+            if(app.init) app.init(contentDiv, id, content, filename, path);
         }
 
         function closeWindow(id) {
@@ -390,252 +519,360 @@
             }
         }
 
+        // --- SHARED: SAVE FILE ---
+        function saveFile(winId, type) {
+            const container = document.getElementById(winId).querySelector('.window-content');
+            let content = '';
+            let ext = '';
+            
+            if(type==='word') { content = document.getElementById(`doc-${winId}`).innerHTML; ext='.docx'; }
+            else if(type==='excel') { content = 'Spreadsheet Data'; ext='.xlsx'; } // Simplified
+            else if(type==='note') { content = document.getElementById(`note-${winId}`).value; ext='.txt'; }
+
+            let filename = container.dataset.filename;
+            if(!filename) {
+                filename = prompt("שמור קובץ בשם:", "NewFile" + ext);
+                if(!filename) return;
+            }
+            
+            const path = ['Users', 'Admin', 'Documents']; // Default save path
+            if(vfs.write(path, filename, content, type)) {
+                alert('הקובץ נשמר בהצלחה בתיקיית Documents');
+                container.dataset.filename = filename;
+            } else { alert('שגיאה בשמירה'); }
+        }
+
         // --- Apps Logic ---
 
-        // 1. SETTINGS (Improved)
-        function initSettings(c) {
+        // 1. ADVANCED EXPLORER
+        function initExplorer(c, id) {
+            let currentPath = ['Users', 'Admin', 'Documents'];
             c.innerHTML = `
-                <div class="flex h-full text-sm">
-                    <div class="w-1/4 border-l border-gray-300/20 p-2 flex flex-col gap-1 bg-gray-50/50 dark:bg-gray-800/50">
-                        <div class="p-3 flex items-center gap-3 mb-2">
-                             <div class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">A</div>
-                             <div><div class="font-bold">Admin</div><div class="text-xs opacity-60">Local Account</div></div>
-                        </div>
-                        <input type="text" placeholder="חיפוש בהגדרות" class="mb-4 p-2 rounded border bg-white/50 w-full">
-                        ${['מערכת', 'Bluetooth והתקנים', 'רשת ואינטרנט', 'התאמה אישית', 'אפליקציות', 'חשבונות', 'זמן ושפה', 'משחקים', 'נגישות', 'Windows Update'].map((item, i) => 
-                            `<div class="p-2 rounded hover:bg-black/5 cursor-pointer flex items-center gap-3 ${i===0?'bg-white shadow-sm':''}">
-                                <i class="fas fa-${['laptop','bluetooth','wifi','paint-brush','th','user','clock','gamepad','universal-access','sync'][i]} w-5 text-center text-blue-500"></i> ${item}
-                            </div>`
-                        ).join('')}
-                    </div>
-                    <div class="w-3/4 p-6 overflow-auto bg-white/80 dark:bg-[#202020]/90">
-                        <h2 class="text-2xl font-bold mb-6">מערכת</h2>
-                        
-                        <!-- Display Section -->
-                        <div class="mb-6 p-4 bg-white/50 dark:bg-white/5 rounded-lg border border-gray-200/50">
-                            <div class="flex items-center gap-3 mb-4"><i class="fas fa-sun text-xl"></i> <span class="font-bold">תצוגה</span></div>
-                            <div class="flex items-center justify-between mb-2">
-                                <span>בהירות</span>
-                                <input type="range" min="20" max="100" value="${systemState.brightness}" oninput="setBrightness(this.value)" class="w-48">
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span>מצב לילה</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                  <input type="checkbox" class="sr-only peer">
-                                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
-                        </div>
-
-                         <!-- Personalization Section Preview -->
-                        <h2 class="text-2xl font-bold mb-6 mt-8">התאמה אישית</h2>
-                        <div class="grid grid-cols-2 gap-4 mb-6">
-                             <div class="p-4 bg-white/50 dark:bg-white/5 rounded-lg border border-gray-200/50 cursor-pointer" onclick="toggleDarkMode()">
-                                <div class="font-bold mb-2">בחר מצב</div>
-                                <div class="flex items-center gap-2"><i class="fas fa-adjust"></i> <span>${systemState.darkMode ? 'כהה (פעיל)' : 'בהיר (פעיל)'} - לחץ להחלפה</span></div>
-                             </div>
-                        </div>
-
-                        <div class="font-bold mb-2">רקע לשולחן העבודה</div>
-                        <div class="grid grid-cols-3 gap-3">
-                             ${[
-                                 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809',
-                                 'https://images.unsplash.com/photo-1477346611705-65d1883cee1e',
-                                 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
-                                 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe'
-                             ].map(url => 
-                                 `<div class="aspect-video rounded overflow-hidden cursor-pointer border-2 border-transparent hover:border-blue-500" onclick="setWall('${url}')">
-                                    <img src="${url}?auto=format&fit=crop&w=400&q=80" class="w-full h-full object-cover">
-                                 </div>`
-                             ).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // 2. WORD (Ribbon & Features)
-        function initWord(c, id) {
-            c.innerHTML = `
-                <div class="flex flex-col h-full bg-gray-100 dark:bg-[#333]">
-                    <!-- Title Bar (in Ribbon style) -->
-                    <div class="bg-[#2b579a] text-white px-2 py-1 text-xs flex gap-4">
-                        <span class="opacity-80">שמירה אוטומטית</span> <span><i class="fas fa-save"></i></span>
-                    </div>
-                    <!-- Ribbon -->
-                    <div class="ribbon bg-white dark:bg-[#444] text-xs">
-                        <div class="ribbon-btn text-blue-600 font-bold">קובץ</div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn" onclick="execCmd('bold')"><i class="fas fa-bold"></i> מודגש</div>
-                        <div class="ribbon-btn" onclick="execCmd('italic')"><i class="fas fa-italic"></i> נטוי</div>
-                        <div class="ribbon-btn" onclick="execCmd('underline')"><i class="fas fa-underline"></i> קו תחתון</div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn" onclick="execCmd('justifyLeft')"><i class="fas fa-align-left"></i></div>
-                        <div class="ribbon-btn" onclick="execCmd('justifyCenter')"><i class="fas fa-align-center"></i></div>
-                        <div class="ribbon-btn" onclick="execCmd('justifyRight')"><i class="fas fa-align-right"></i></div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn" onclick="execCmd('insertUnorderedList')"><i class="fas fa-list-ul"></i> תבליטים</div>
-                        <div class="ribbon-btn" onclick="execCmd('foreColor', 'red')"><i class="fas fa-font text-red-500"></i> אדום</div>
-                        <div class="ribbon-btn" onclick="execCmd('foreColor', 'blue')"><i class="fas fa-font text-blue-500"></i> כחול</div>
-                        <div class="ml-auto ribbon-btn"><i class="fas fa-microphone"></i> הכתבה</div>
-                    </div>
-                    <!-- Page -->
-                    <div class="flex-grow bg-gray-200 dark:bg-[#222] overflow-auto p-8 flex justify-center">
-                        <div class="bg-white w-[21cm] min-h-[29.7cm] shadow-xl p-[2.5cm] outline-none text-right text-black" contenteditable="true">
-                            <h1 style="font-size: 24px; font-weight: bold; border-bottom: 2px solid #2b579a; margin-bottom: 10px; color: #2b579a;">מסמך חדש</h1>
-                            <p>התחל להקליד כאן. כל כפתורי העיצוב למעלה עובדים!</p>
-                            <ul><li>נסה להדגיש טקסט</li><li>לשנות צבעים</li></ul>
-                        </div>
-                    </div>
-                    <!-- Status Bar -->
-                    <div class="bg-[#2b579a] text-white text-[10px] px-2 py-1 flex justify-between">
-                         <span>עמוד 1 מתוך 1</span> <span>עברית</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        // 3. EXCEL (Improved Grid & Formulas)
-        function initExcel(c, id) {
-            c.innerHTML = `
-                <div class="flex flex-col h-full bg-white dark:bg-[#333] text-sm">
-                    <div class="bg-[#217346] text-white px-2 py-1 text-xs">Excel</div>
-                    <div class="ribbon bg-white dark:bg-[#444]">
-                        <div class="ribbon-btn"><i class="fas fa-paste"></i> הדבק</div>
-                        <div class="ribbon-btn"><i class="fas fa-copy"></i> העתק</div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn font-bold">B</div>
-                        <div class="ribbon-btn italic">I</div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn" onclick="alert('פונקציית סכום הופעלה על התאים')"><i class="fas fa-calculator"></i> סכום אוטומטי</div>
-                    </div>
-                    <div class="flex items-center border-b p-1 bg-gray-100 dark:bg-[#333] dark:border-gray-600">
-                        <div class="w-10 text-center border bg-white dark:bg-[#444] dark:border-gray-500 mr-2 text-xs py-1">A1</div>
-                        <input type="text" class="flex-grow border px-2 py-1 text-xs dark:bg-[#444] dark:border-gray-500 dark:text-white" placeholder="fx">
-                    </div>
-                    <div class="flex-grow overflow-auto relative">
-                        <div class="grid grid-cols-[40px_repeat(10,100px)]">
-                            <div class="bg-gray-100 border-b border-r dark:bg-[#444] dark:border-gray-600"></div>
-                            ${Array.from({length:10},(_,i)=>`<div class="bg-gray-100 border-b border-r text-center text-xs p-1 font-bold dark:bg-[#444] dark:border-gray-600">${String.fromCharCode(65+i)}</div>`).join('')}
-                            ${Array.from({length:30},(_,r)=>
-                                `<div class="bg-gray-100 border-b border-r text-center text-xs p-1 dark:bg-[#444] dark:border-gray-600">${r+1}</div>` +
-                                Array.from({length:10},()=>`<input class="border-b border-r text-xs p-1 outline-none focus:border-green-500 focus:border-2 dark:bg-[#222] dark:border-gray-600 dark:text-white">`).join('')
-                            ).join('')}
-                        </div>
-                    </div>
-                     <div class="bg-gray-100 dark:bg-[#333] border-t px-2 py-1 text-xs flex gap-2">
-                        <span class="bg-white dark:bg-[#555] px-3 py-1 rounded-t shadow text-green-700 dark:text-green-400 font-bold">גיליון1</span>
-                        <span class="px-2 py-1 opacity-50">+</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        // 4. POWERPOINT (Re-implemented)
-        let pptSlides = [{title: "כותרת ראשית", sub: "כותרת משנה"}, {title: "תוכן העניינים", sub: "נקודה 1\nנקודה 2"}];
-        function initPPT(c, id) {
-            c.innerHTML = `
-                <div class="flex flex-col h-full bg-white dark:bg-[#333]">
-                    <div class="bg-[#b7472a] text-white px-2 py-1 text-xs">PowerPoint</div>
-                    <div class="ribbon bg-white dark:bg-[#444]">
-                        <div class="ribbon-btn" onclick="addSlide('${id}')"><i class="fas fa-plus-square text-orange-600"></i> שקופית חדשה</div>
-                        <div class="ribbon-sep"></div>
-                        <div class="ribbon-btn"><i class="fas fa-image"></i> תמונה</div>
-                        <div class="ribbon-btn"><i class="fas fa-shapes"></i> צורות</div>
-                        <div class="ml-auto ribbon-btn" onclick="alert('מצגת מתחילה...')"><i class="fas fa-play text-green-600"></i> הצג</div>
+                <div class="flex flex-col h-full bg-white dark:bg-[#222] text-sm">
+                    <div class="flex gap-2 p-2 border-b bg-gray-50 dark:bg-[#333] dark:border-gray-600">
+                        <button class="px-3 py-1 bg-white border rounded hover:bg-gray-100" onclick="expAction('${id}', 'copy')"><i class="fas fa-copy"></i> העתק</button>
+                        <button class="px-3 py-1 bg-white border rounded hover:bg-gray-100" onclick="expAction('${id}', 'cut')"><i class="fas fa-cut"></i> גזור</button>
+                        <button class="px-3 py-1 bg-white border rounded hover:bg-gray-100" onclick="expAction('${id}', 'paste')"><i class="fas fa-paste"></i> הדבק</button>
+                        <div class="flex-grow"></div>
+                        <input class="w-1/3 border px-2 rounded bg-white" value="PC > Documents" id="exp-addr-${id}" readonly>
                     </div>
                     <div class="flex flex-grow overflow-hidden">
-                        <!-- Sidebar -->
-                        <div class="w-40 bg-gray-100 dark:bg-[#2a2a2a] border-l dark:border-gray-600 p-2 overflow-y-auto flex flex-col gap-2" id="ppt-sidebar-${id}">
-                            <!-- Slides -->
+                        <div class="w-48 bg-gray-50 dark:bg-[#252525] border-l dark:border-gray-600 p-2 flex flex-col gap-1">
+                            <div class="tree-node font-bold"><i class="fas fa-desktop text-blue-400"></i> שולחן העבודה</div>
+                            <div class="tree-node font-bold cursor-pointer hover:bg-blue-100 rounded" onclick="expNav('${id}', ['Users','Admin','Documents'])"><i class="fas fa-file-alt text-yellow-500"></i> מסמכים</div>
+                            <div class="tree-node font-bold cursor-pointer hover:bg-blue-100 rounded" onclick="expNav('${id}', ['Users','Admin','Pictures'])"><i class="fas fa-image text-purple-500"></i> תמונות</div>
+                            <div class="tree-node font-bold cursor-pointer hover:bg-blue-100 rounded" onclick="expNav('${id}', ['Users','Admin','Downloads'])"><i class="fas fa-download text-green-500"></i> הורדות</div>
                         </div>
-                        <!-- Stage -->
-                        <div class="flex-grow bg-gray-200 dark:bg-[#202020] p-8 flex items-center justify-center">
-                            <div class="bg-white aspect-video w-full shadow-2xl p-8 flex flex-col justify-center items-center text-center select-text" id="ppt-stage-${id}" contenteditable="true">
-                                <!-- Active Slide -->
+                        <div class="flex-grow p-4 grid grid-cols-6 gap-2 content-start" id="exp-grid-${id}"></div>
+                    </div>
+                    <div class="h-6 border-t bg-gray-50 px-2 text-xs flex items-center">פריטים: <span id="exp-count-${id}">0</span></div>
+                </div>
+            `;
+            c.dataset.path = JSON.stringify(currentPath);
+            renderExplorer(id);
+        }
+
+        window.expNav = (id, path) => {
+            document.getElementById(id).querySelector('.window-content').dataset.path = JSON.stringify(path);
+            renderExplorer(id);
+        }
+        
+        window.expAction = (id, action) => {
+            const path = JSON.parse(document.getElementById(id).querySelector('.window-content').dataset.path);
+            const selected = document.querySelector(`#exp-grid-${id} .file-item.selected`);
+            
+            if(action === 'paste') {
+                if(vfs.paste(path)) { renderExplorer(id); }
+            } else if (selected) {
+                const name = selected.querySelector('span').innerText;
+                if(action === 'copy') vfs.copy(path, name);
+                if(action === 'cut') vfs.cut(path, name);
+            }
+        };
+
+        function renderExplorer(id) {
+            const c = document.getElementById(id).querySelector('.window-content');
+            const path = JSON.parse(c.dataset.path);
+            const grid = document.getElementById(`exp-grid-${id}`);
+            const dir = vfs.resolve(path);
+            
+            // Update address bar
+            const addr = document.getElementById(`exp-addr-${id}`);
+            if(addr) addr.value = path.join(' > ');
+
+            grid.innerHTML = '';
+            let count = 0;
+            if(dir && dir.children) {
+                Object.entries(dir.children).forEach(([name, data]) => {
+                    count++;
+                    const el = document.createElement('div');
+                    el.className = 'file-item';
+                    let icon = 'fa-file'; let color = 'text-gray-400';
+                    if(data.type==='folder') { icon='fa-folder'; color='text-yellow-400'; }
+                    else if(data.app==='word') { icon='fa-file-word'; color='text-blue-600'; }
+                    else if(data.app==='excel') { icon='fa-file-excel'; color='text-green-600'; }
+                    else if(data.app==='gallery') { icon='fa-image'; color='text-purple-600'; }
+                    else if(data.app==='cmd') { icon='fa-cog'; color='text-gray-600'; }
+                    
+                    el.innerHTML = `<i class="fas ${icon} text-3xl ${color} mb-2"></i><span class="text-xs break-all leading-tight">${name}</span>`;
+                    el.onclick = () => { 
+                        document.querySelectorAll(`#exp-grid-${id} .file-item`).forEach(e=>e.classList.remove('selected'));
+                        el.classList.add('selected');
+                    };
+                    el.ondblclick = () => {
+                        if(data.type==='file') openWindow(data.app, data.content, name, path);
+                        else if(data.type==='folder') expNav(id, [...path, name]);
+                    };
+                    grid.appendChild(el);
+                });
+            }
+            document.getElementById(`exp-count-${id}`).innerText = count;
+        }
+
+        // 2. ANDROID ULTRA (Fixed Nav)
+        function initAndroid(c, id) {
+            c.innerHTML = `
+                <div class="android-frame">
+                    <div class="android-screen">
+                        <!-- Status Bar -->
+                        <div class="flex justify-between px-3 py-1 text-white text-[10px] z-50 absolute w-full bg-black/20 top-0 left-0">
+                            <span>12:00</span>
+                            <div class="flex gap-1"><i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i></div>
+                        </div>
+
+                        <div class="flex-grow relative overflow-hidden flex flex-col pt-6 pb-12">
+                            <!-- Home Screen -->
+                            <div id="and-home-${id}" class="android-app active bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400')] bg-cover text-white p-4 h-full absolute top-0 left-0">
+                                <div class="mt-8 text-center text-4xl font-light drop-shadow">12:00</div>
+                                <div class="text-center text-xs opacity-80 mb-auto">Sunday, Jan 1</div>
+                                
+                                <div class="grid grid-cols-4 gap-4 mt-auto mb-4 absolute bottom-4 w-full px-4 left-0">
+                                    ${appIcon('phone', 'bg-green-500', 'fas fa-phone', id, 'phone')}
+                                    ${appIcon('msg', 'bg-blue-500', 'fas fa-comment', id, 'msg')}
+                                    ${appIcon('gallery', 'bg-purple-500', 'fas fa-images', id, 'gallery')}
+                                    ${appIcon('browser', 'bg-orange-500', 'fab fa-chrome', id, 'browser')}
+                                </div>
+                            </div>
+
+                            <!-- Apps -->
+                            <div id="and-phone-${id}" class="android-app absolute top-0 left-0 h-full">
+                                <div class="bg-gray-100 p-2 font-bold text-gray-800 text-center shadow pt-8">Phone</div>
+                                <div class="flex-grow flex flex-col items-center justify-center relative bg-white">
+                                    <div id="call-overlay-${id}" class="absolute w-full h-full bg-black/90 text-white flex flex-col items-center justify-center z-10 hidden">
+                                        <div class="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-3xl mb-4 animate-[pulse-ring_2s_infinite]"><i class="fas fa-user"></i></div>
+                                        <div class="text-xl">Calling...</div>
+                                        <div class="text-sm opacity-70 mb-8" id="call-num-${id}"></div>
+                                        <button class="w-16 h-16 rounded-full bg-red-600 text-white" onclick="endCall('${id}')"><i class="fas fa-phone-slash"></i></button>
+                                    </div>
+                                    <div class="text-3xl mb-8 border-b w-3/4 text-center py-2 text-gray-700 h-12" id="dial-disp-${id}"></div>
+                                    <div class="grid grid-cols-3 gap-6 text-2xl font-light text-gray-700">
+                                        ${[1,2,3,4,5,6,7,8,9,'*',0,'#'].map(n => `<div class="cursor-pointer hover:bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center" onclick="dial('${id}','${n}')">${n}</div>`).join('')}
+                                    </div>
+                                    <button class="w-16 h-16 rounded-full bg-green-500 text-white text-2xl mt-8 shadow-lg" onclick="startCall('${id}')"><i class="fas fa-phone"></i></button>
+                                </div>
+                            </div>
+
+                            <div id="and-msg-${id}" class="android-app bg-white flex flex-col absolute top-0 left-0 h-full">
+                                <div class="bg-blue-600 p-3 text-white font-bold shadow pt-8">Messages</div>
+                                <div class="flex-grow p-2 overflow-y-auto flex flex-col gap-2 bg-gray-50" id="msg-list-${id}">
+                                    <div class="bg-gray-200 p-2 rounded-lg self-start max-w-[80%] text-sm">Welcome to Android!</div>
+                                </div>
+                                <div class="p-2 border-t flex gap-2 bg-white pb-14">
+                                    <input id="msg-in-${id}" class="flex-grow border rounded-full px-3 text-sm" placeholder="Text message">
+                                    <button class="text-blue-600" onclick="sendMsg('${id}')"><i class="fas fa-paper-plane"></i></button>
+                                </div>
+                            </div>
+
+                            <div id="and-gallery-${id}" class="android-app bg-black text-white p-2 grid grid-cols-3 gap-1 content-start overflow-y-auto absolute top-0 left-0 h-full pt-8">
+                                ${Array(12).fill(0).map((_,i) => `<div class="aspect-square bg-gray-800 rounded overflow-hidden"><img src="https://picsum.photos/100?random=${i}" class="w-full h-full object-cover"></div>`).join('')}
+                            </div>
+
+                            <div id="and-browser-${id}" class="android-app flex flex-col absolute top-0 left-0 h-full">
+                                <div class="bg-gray-200 p-2 flex gap-2 items-center text-xs pt-8">
+                                    <div class="bg-white flex-grow rounded px-2 py-1 flex items-center gap-2"><i class="fas fa-lock text-green-600"></i> google.com</div>
+                                </div>
+                                <div class="flex-grow flex flex-col items-center justify-center bg-white">
+                                    <iframe src="about:blank" class="w-full h-full border-none"></iframe>
+                                </div>
                             </div>
                         </div>
+                        
+                        <!-- Nav Bar (Fixed Bottom) -->
+                        <div class="bg-black py-3 flex justify-around text-gray-400 z-50 absolute bottom-0 left-0 w-full h-12 items-center">
+                            <i class="fas fa-bars cursor-pointer text-lg"></i>
+                            <i class="fas fa-square cursor-pointer text-lg" onclick="goHome('${id}')"></i>
+                            <i class="fas fa-arrow-left cursor-pointer text-lg" onclick="goHome('${id}')"></i>
+                        </div>
                     </div>
                 </div>
             `;
-            renderPPT(id, 0);
         }
-        window.addSlide = (id) => { pptSlides.push({title: "שקופית חדשה", sub: "הוסף טקסט"}); renderPPT(id, pptSlides.length-1); };
-        window.renderPPT = (id, idx) => {
-            const sb = document.getElementById(`ppt-sidebar-${id}`);
-            const st = document.getElementById(`ppt-stage-${id}`);
-            if(!sb || !st) return;
-            
-            sb.innerHTML = pptSlides.map((s, i) => `
-                <div class="aspect-video bg-white border ${i===idx?'border-orange-500 ring-2 ring-orange-200':''} shadow-sm p-1 text-[5px] cursor-pointer overflow-hidden" onclick="renderPPT('${id}', ${i})">
-                    <div class="font-bold">${s.title}</div><div>${s.sub}</div>
-                </div>
-            `).join('');
-
-            st.innerHTML = `
-                <h1 class="text-4xl font-bold mb-4 text-gray-800 border border-dashed border-transparent hover:border-gray-400 p-2 w-full">${pptSlides[idx].title}</h1>
-                <div class="text-xl text-gray-500 w-full border border-dashed border-transparent hover:border-gray-400 p-2 whitespace-pre-wrap">${pptSlides[idx].sub}</div>
-            `;
+        function appIcon(target, color, icon, id, name) {
+            return `<div class="flex flex-col items-center gap-1 cursor-pointer" onclick="openApp('${id}', '${target}')">
+                <div class="w-12 h-12 ${color} rounded-xl flex items-center justify-center text-white text-xl shadow"><i class="${icon}"></i></div>
+                <div class="text-[10px] text-white shadow-black">${name}</div>
+            </div>`;
         }
+        window.openApp = (winId, app) => {
+            document.querySelectorAll(`#${winId} .android-app`).forEach(el => el.classList.remove('active'));
+            document.getElementById(`and-${app}-${winId}`).classList.add('active');
+        };
+        window.goHome = (winId) => {
+            document.querySelectorAll(`#${winId} .android-app`).forEach(el => el.classList.remove('active'));
+            document.getElementById(`and-home-${winId}`).classList.add('active');
+        };
+        window.dial = (id, n) => document.getElementById(`dial-disp-${id}`).innerText += n;
+        window.startCall = (id) => {
+            const num = document.getElementById(`dial-disp-${id}`).innerText;
+            if(!num) return;
+            document.getElementById(`call-num-${id}`).innerText = num;
+            document.getElementById(`call-overlay-${id}`).classList.remove('hidden');
+            document.getElementById(`call-overlay-${id}`).classList.add('flex');
+        };
+        window.endCall = (id) => {
+            document.getElementById(`call-overlay-${id}`).classList.add('hidden');
+            document.getElementById(`call-overlay-${id}`).classList.remove('flex');
+            document.getElementById(`dial-disp-${id}`).innerText = '';
+        };
+        window.sendMsg = (id) => {
+            const inp = document.getElementById(`msg-in-${id}`);
+            if(!inp.value) return;
+            const list = document.getElementById(`msg-list-${id}`);
+            list.innerHTML += `<div class="bg-blue-500 text-white p-2 rounded-lg self-end max-w-[80%] text-sm">${inp.value}</div>`;
+            inp.value = '';
+        };
 
-        // 5. CMD
-        function initCMD(c, id) {
+        // 3. MAC OS (Functional)
+        function initMac(c, id) {
             c.innerHTML = `
-                <div class="bg-black text-gray-300 font-mono text-sm h-full p-2 overflow-auto" onclick="document.getElementById('cmd-in-${id}').focus()">
-                    <div>Microsoft Windows [Version 12.0.22621.1]<br>(c) Microsoft Corporation. All rights reserved.</div><br>
-                    <div id="cmd-out-${id}"></div>
-                    <div class="flex">
-                        <span class="mr-2 text-white">C:\\Users\\Admin></span>
-                        <input id="cmd-in-${id}" class="bg-transparent border-none outline-none text-white flex-grow font-mono" autocomplete="off" onkeydown="handleCMD(event, '${id}')">
+                <div class="mac-frame">
+                    <div class="bg-gray-100/90 h-6 flex items-center px-4 text-xs font-semibold gap-4 z-10 border-b shadow-sm">
+                        <i class="fab fa-apple"></i>
+                        <span>Finder</span>
+                        <span>File</span>
+                        <span>Edit</span>
+                        <span>View</span>
+                        <span>Go</span>
+                        <div class="ml-auto flex gap-3">
+                            <i class="fas fa-search"></i>
+                            <i class="fas fa-wifi"></i>
+                            <span>Sun 12:00</span>
+                        </div>
+                    </div>
+                    <div class="mac-desktop" id="mac-desk-${id}">
+                        <!-- Safari Window -->
+                        <div id="mac-safari-${id}" class="mac-window-vm w-[500px] h-[350px] top-[40px] left-[50px]">
+                            <div class="bg-gray-200 p-2 flex gap-2 items-center border-b">
+                                <div class="flex gap-2 mr-2">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onclick="this.closest('.mac-window-vm').style.display='none'"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
+                                <div class="bg-white flex-grow rounded text-center text-xs text-gray-500 py-0.5">apple.com</div>
+                            </div>
+                            <div class="flex-grow bg-white flex flex-col items-center justify-center">
+                                <i class="fab fa-apple text-6xl text-gray-800 mb-4"></i>
+                                <h1 class="text-2xl font-bold">MacBook Pro</h1>
+                                <button class="mt-4 bg-blue-600 text-white px-4 py-1 rounded-full text-sm">Buy</button>
+                            </div>
+                        </div>
+
+                         <!-- Terminal Window -->
+                        <div id="mac-term-${id}" class="mac-window-vm w-[400px] h-[300px] top-[100px] left-[200px] bg-[#1e1e1e] text-white font-mono text-sm border-none shadow-2xl">
+                            <div class="bg-[#333] p-2 flex gap-2 items-center border-b border-gray-600">
+                                <div class="flex gap-2 mr-2">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onclick="this.closest('.mac-window-vm').style.display='none'"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
+                                <div class="text-xs text-gray-400 mx-auto">user — -zsh</div>
+                            </div>
+                            <div class="p-2">
+                                <div>Last login: Sun Jan 1 on ttys000</div>
+                                <div>user@macbook % <span class="animate-pulse">_</span></div>
+                            </div>
+                        </div>
+
+                         <div class="mac-dock">
+                            <div class="mac-dock-icon bg-blue-500 text-white"><i class="fas fa-smile"></i></div>
+                            <div class="mac-dock-icon bg-white text-blue-500" onclick="toggleMacWin('${id}', 'safari')"><i class="fab fa-safari"></i></div>
+                            <div class="mac-dock-icon bg-black text-white" onclick="toggleMacWin('${id}', 'term')"><i class="fas fa-terminal"></i></div>
+                            <div class="mac-dock-icon bg-yellow-400 text-white"><i class="fas fa-sticky-note"></i></div>
+                            <div class="w-px h-8 bg-white/20 mx-1"></div>
+                            <div class="mac-dock-icon bg-gray-500 text-white"><i class="fas fa-trash"></i></div>
+                        </div>
                     </div>
                 </div>
             `;
+            
+            // Make Mac windows draggable within VM
+            setTimeout(() => {
+                c.querySelectorAll('.mac-window-vm').forEach(w => {
+                    const h = w.firstElementChild;
+                    h.onmousedown = (e) => {
+                         // Simple drag logic for internal windows
+                         let shiftX = e.clientX - w.getBoundingClientRect().left;
+                         let shiftY = e.clientY - w.getBoundingClientRect().top;
+                         const desk = document.getElementById(`mac-desk-${id}`);
+                         const deskRect = desk.getBoundingClientRect();
+                         
+                         function moveAt(pageX, pageY) {
+                             w.style.left = (pageX - shiftX - deskRect.left) + 'px';
+                             w.style.top = (pageY - shiftY - deskRect.top) + 'px';
+                         }
+                         function onMove(ev) { moveAt(ev.pageX, ev.pageY); }
+                         document.addEventListener('mousemove', onMove);
+                         h.onmouseup = () => document.removeEventListener('mousemove', onMove);
+                    };
+                });
+            }, 500);
         }
-        window.handleCMD = (e, id) => {
-            if(e.key === 'Enter') {
-                const val = e.target.value;
-                const out = document.getElementById(`cmd-out-${id}`);
-                out.innerHTML += `<div><span class="text-white">C:\\Users\\Admin></span> ${val}</div>`;
-                if(val === 'dir') out.innerHTML += `<div>01/01/2025 <DIR> Documents<br>01/01/2025 <DIR> Downloads</div>`;
-                else if(val === 'cls') out.innerHTML = '';
-                else if(val === 'help') out.innerHTML += `<div>Commands: dir, cls, echo, exit, help</div>`;
-                else out.innerHTML += `<div class="text-red-400">'${val}' is not recognized.</div>`;
-                e.target.value = '';
-                e.target.parentElement.parentElement.scrollTop = 99999;
+        window.toggleMacWin = (id, app) => {
+            const el = document.getElementById(`mac-${app}-${id}`);
+            if(el) {
+                el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+                el.style.zIndex = 50;
             }
         }
 
-        // 6. ANDROID
-        function initAndroid(c, id) {
-            c.innerHTML = `<div class="android-frame bg-gray-900"><div class="android-screen flex flex-col items-center justify-center text-white"><i class="fab fa-android text-6xl text-green-500 mb-4"></i><div>Android OS</div><div class="mt-4 grid grid-cols-4 gap-4"><div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center"><i class="fas fa-phone"></i></div><div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center"><i class="fas fa-comment"></i></div><div class="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center"><i class="fas fa-camera"></i></div><div class="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center"><i class="fab fa-chrome"></i></div></div></div></div>`;
+        // 3. WORD (With Save)
+        function initWord(c, id, content, filename) {
+            c.dataset.filename = filename || '';
+            c.innerHTML = `
+                <div class="flex flex-col h-full bg-gray-100 dark:bg-[#333]">
+                    <div class="bg-[#2b579a] text-white px-2 py-1 text-xs flex gap-4">
+                        <span class="cursor-pointer hover:bg-white/20 px-2 rounded" onclick="saveFile('${id}', 'word')"><i class="fas fa-save"></i> שמור</span>
+                    </div>
+                    <div class="ribbon bg-white dark:bg-[#444] text-xs">
+                        <div class="ribbon-btn" onclick="document.execCommand('bold')"><i class="fas fa-bold"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('italic')"><i class="fas fa-italic"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('underline')"><i class="fas fa-underline"></i></div>
+                         <div class="ribbon-btn" onclick="document.execCommand('foreColor', false, 'red')"><i class="fas fa-font text-red-500"></i></div>
+                    </div>
+                    <div class="flex-grow bg-gray-200 dark:bg-[#222] overflow-auto p-8 flex justify-center">
+                        <div id="doc-${id}" class="bg-white w-[21cm] min-h-[29.7cm] shadow-xl p-[2.5cm] outline-none text-right text-black" contenteditable="true">
+                            ${content || '<h1 class="text-2xl font-bold mb-4 text-[#2b579a]">מסמך חדש</h1><p>התחל להקליד...</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
-        // 7. MAC
-        function initMac(c, id) {
-            c.innerHTML = `<div class="mac-frame"><div class="bg-white/20 h-6 w-full flex items-center px-4 text-xs text-white gap-4 font-bold"><span></span><span>Finder</span><span>File</span><span>Edit</span></div><div class="flex-grow relative bg-[url('https://images.unsplash.com/photo-1496664444929-8c75efb9546f?w=800')] bg-cover"><div class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white/30 backdrop-blur rounded-2xl p-2 flex gap-4"><div class="w-10 h-10 bg-blue-500 rounded-xl"></div><div class="w-10 h-10 bg-gray-200 rounded-xl"></div></div></div></div>`;
+        // 4. EXCEL
+        function initExcel(c, id) {
+            c.innerHTML = `<div class="h-full flex flex-col bg-white"><div class="bg-[#217346] text-white p-1 text-xs"><button onclick="saveFile('${id}','excel')"><i class="fas fa-save"></i> שמור</button></div><div class="flex-grow overflow-auto grid grid-cols-[40px_repeat(10,100px)]">${Array.from({length:100},(_,i)=>`<input class="border text-xs p-1">`).join('')}</div></div>`;
         }
 
-        // --- Helpers ---
-        window.setBrightness = (val) => {
-            systemState.brightness = val;
-            document.getElementById('brightness-overlay').style.opacity = (100 - val) / 100;
+        // 5. NOTEPAD
+        function initNotepad(c, id, content, filename) {
+            c.dataset.filename = filename || '';
+            c.innerHTML = `<div class="h-full flex flex-col bg-white"><div class="border-b p-1 text-xs"><button onclick="saveFile('${id}','note')">שמור</button></div><textarea id="note-${id}" class="flex-grow p-2 outline-none resize-none font-mono text-sm">${content || ''}</textarea></div>`;
         }
-        window.toggleDarkMode = () => {
-            systemState.darkMode = !systemState.darkMode;
-            document.body.classList.toggle('dark-mode');
-            // Refresh settings window if open
-            // (In a real app, this would use React/Vue state binding)
-        }
-        window.setWall = (url) => {
-            document.getElementById('wallpaper').style.backgroundImage = `url('${url}')`;
-        }
-        window.execCmd = (cmd, arg=null) => {
-            document.execCommand(cmd, false, arg);
-        }
-        
-        // Placeholder inits
-        function initExplorer(c){ c.innerHTML = '<div class="p-4">סייר הקבצים - תצוגה מהירה</div>'; }
-        function initNotepad(c){ c.innerHTML = '<textarea class="w-full h-full p-2 border-none outline-none resize-none bg-transparent" placeholder="הקלד..."></textarea>'; }
+
+        // Standard Functions
+        function initSettings(c){ c.innerHTML = '<div class="p-4">הגדרות מערכת (דמה)</div>'; }
+        function initCMD(c){ c.innerHTML = '<div class="bg-black text-white h-full p-2 font-mono">Microsoft Windows [Version 12.0]<br>C:\\Users\\Admin></div>'; }
+        function initPPT(c){ c.innerHTML = '<div class="h-full bg-white flex items-center justify-center">PowerPoint Slide</div>'; }
 
         function systemAction(act) { location.reload(); }
 
