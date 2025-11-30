@@ -55,7 +55,8 @@
         @keyframes winPop { 0% { transform: scale(0.95) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(100%) translateX(-50%); } to { transform: translateY(0) translateX(-50%); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        @keyframes ripple { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2); opacity: 0; } }
 
         /* Wallpaper */
         .desktop-bg {
@@ -186,6 +187,9 @@
         .ribbon-btn:hover { background: rgba(0,0,0,0.1); }
         .dark-mode .ribbon-btn:hover { background: rgba(255,255,255,0.1); }
         .ribbon-sep { width: 1px; height: 24px; background: #ccc; margin: 0 4px; }
+        
+        /* Call Animation */
+        .call-pulse { position: absolute; width: 100px; height: 100px; border-radius: 50%; background: rgba(34, 197, 94, 0.5); animation: ripple 2s infinite; z-index: 0; }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -292,7 +296,8 @@
             write(pathArr, name, content, app) {
                 const dir = this.resolve(pathArr);
                 if (dir && dir.type === 'folder') {
-                    dir.children[name] = { type: 'file', content, app };
+                    // Overwrite if exists or create new
+                    dir.children[name] = { type: 'file', content: content, app: app };
                     return true;
                 }
                 return false;
@@ -494,7 +499,8 @@
             const app = apps.find(a => a.id === appId);
             const id = appId + '_' + Date.now();
             zIndex++;
-            // Note: pointer-events logic handled by CSS
+            // Fix drag logic for new windows without changing container logic
+            // (CSS handles the container events)
 
             const win = document.createElement('div');
             win.className = 'window glass';
@@ -544,6 +550,7 @@
             win.appendChild(contentDiv);
             document.getElementById('windows-container').appendChild(win);
             document.getElementById('task-'+appId).classList.add('active');
+            activeWindows[id] = { app: appId }; // Track for refresh
             
             if(app.init) app.init(contentDiv, id, content, filename, path);
         }
@@ -553,6 +560,7 @@
             win.style.opacity = 0; win.style.transform = 'scale(0.9)';
             setTimeout(() => {
                 win.remove();
+                delete activeWindows[id];
                 const appId = id.split('_')[0];
                 if(!document.querySelector(`[id^="${appId}_"]`)) document.getElementById('task-'+appId).classList.remove('active');
             }, 200);
@@ -568,7 +576,7 @@
         }
 
         // --- SHARED: SAVE FILE ---
-        function saveFile(winId, type) {
+        function saveFile(winId, type, forcePrompt = false) {
             const container = document.getElementById(winId).querySelector('.window-content');
             let content = '';
             let ext = '';
@@ -577,17 +585,27 @@
             else if(type==='excel') { content = 'Spreadsheet Data'; ext='.xlsx'; }
             else if(type==='note') { content = document.getElementById(`note-${winId}`).value; ext='.txt'; }
 
-            let filename = container.dataset.filename;
+            let filename = forcePrompt ? '' : container.dataset.filename;
             if(!filename) {
                 filename = prompt("שמור קובץ בשם:", "NewFile" + ext);
                 if(!filename) return;
+                if(!filename.endsWith(ext)) filename += ext;
             }
             
             const path = ['Users', 'Admin', 'Documents']; 
             if(vfs.write(path, filename, content, type)) {
-                alert('הקובץ נשמר בהצלחה בתיקיית Documents');
+                alert(`הקובץ ${filename} נשמר בהצלחה בתיקיית Documents`);
                 container.dataset.filename = filename;
+                refreshExplorers(); // Refresh ALL open explorers immediately
             } else { alert('שגיאה בשמירה'); }
+        }
+
+        function refreshExplorers() {
+            Object.keys(activeWindows).forEach(winId => {
+                if(activeWindows[winId].app === 'explorer') {
+                    renderExplorer(winId);
+                }
+            });
         }
 
         // --- Apps Logic ---
@@ -661,6 +679,8 @@
                     else if(data.app==='word') { icon='fa-file-word'; color='text-blue-600'; }
                     else if(data.app==='excel') { icon='fa-file-excel'; color='text-green-600'; }
                     else if(data.app==='note') { icon='fa-sticky-note'; color='text-yellow-600'; }
+                    else if(data.app==='gallery') { icon='fa-image'; color='text-purple-600'; }
+                    else if(data.app==='cmd') { icon='fa-cog'; color='text-gray-600'; }
                     
                     el.innerHTML = `<i class="fas ${icon} text-3xl ${color} mb-2"></i><span class="text-xs break-all leading-tight">${name}</span>`;
                     
@@ -724,11 +744,20 @@
                             <div id="and-app-phone-${id}" class="android-app absolute top-0 left-0 h-full w-full bg-white z-10 hidden flex-col">
                                 <div class="bg-gray-100 p-2 font-bold text-gray-800 text-center shadow pt-8">Phone</div>
                                 <div class="flex-grow flex flex-col items-center justify-center relative bg-white">
+                                    <div id="call-overlay-${id}" class="absolute w-full h-full bg-black/90 text-white flex flex-col items-center justify-center z-20 hidden">
+                                        <div class="relative">
+                                            <div class="call-pulse"></div>
+                                            <div class="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-3xl mb-4 relative z-10"><i class="fas fa-user"></i></div>
+                                        </div>
+                                        <div class="text-xl">Calling...</div>
+                                        <div class="text-sm opacity-70 mb-8" id="call-num-${id}"></div>
+                                        <button class="w-16 h-16 rounded-full bg-red-600 text-white" onclick="endCall('${id}')"><i class="fas fa-phone-slash"></i></button>
+                                    </div>
                                     <div class="text-3xl mb-8 border-b w-3/4 text-center py-2 text-gray-700 h-12" id="dial-disp-${id}"></div>
                                     <div class="grid grid-cols-3 gap-6 text-2xl font-light text-gray-700">
                                         ${[1,2,3,4,5,6,7,8,9,'*',0,'#'].map(n => `<div class="cursor-pointer hover:bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center" onclick="dial('${id}','${n}')">${n}</div>`).join('')}
                                     </div>
-                                    <button class="w-16 h-16 rounded-full bg-green-500 text-white text-2xl mt-8 shadow-lg"><i class="fas fa-phone"></i></button>
+                                    <button class="w-16 h-16 rounded-full bg-green-500 text-white text-2xl mt-8 shadow-lg" onclick="startCall('${id}')"><i class="fas fa-phone"></i></button>
                                 </div>
                             </div>
 
@@ -804,6 +833,18 @@
         window.dial = (id, n) => {
             const el = document.getElementById(`dial-disp-${id}`);
             if(el) el.innerText += n;
+        };
+        window.startCall = (id) => {
+            const num = document.getElementById(`dial-disp-${id}`).innerText;
+            if(!num) return;
+            document.getElementById(`call-num-${id}`).innerText = num;
+            document.getElementById(`call-overlay-${id}`).classList.remove('hidden');
+            document.getElementById(`call-overlay-${id}`).classList.add('flex');
+        };
+        window.endCall = (id) => {
+            document.getElementById(`call-overlay-${id}`).classList.add('hidden');
+            document.getElementById(`call-overlay-${id}`).classList.remove('flex');
+            document.getElementById(`dial-disp-${id}`).innerText = '';
         };
         window.sendMsg = (id) => {
             const inp = document.getElementById(`msg-in-${id}`);
@@ -907,6 +948,7 @@
                 <div class="flex flex-col h-full bg-gray-100 dark:bg-[#333]">
                     <div class="bg-[#2b579a] text-white px-2 py-1 text-xs flex gap-4">
                         <span class="cursor-pointer hover:bg-white/20 px-2 rounded" onclick="saveFile('${id}', 'word')"><i class="fas fa-save"></i> שמור</span>
+                        <span class="cursor-pointer hover:bg-white/20 px-2 rounded" onclick="saveFile('${id}', 'word', true)">שמירה בשם</span>
                         <span>בית</span> <span>הוספה</span> <span>תצוגה</span>
                     </div>
                     <div class="ribbon bg-white dark:bg-[#444] text-xs">
@@ -934,7 +976,10 @@
         function initExcel(c, id) {
             c.innerHTML = `
                 <div class="flex flex-col h-full bg-white dark:bg-[#333] text-sm">
-                    <div class="bg-[#217346] text-white px-2 py-1 text-xs"><button onclick="saveFile('${id}','excel')"><i class="fas fa-save"></i> שמור</button></div>
+                    <div class="bg-[#217346] text-white px-2 py-1 text-xs flex gap-4">
+                        <button onclick="saveFile('${id}','excel')"><i class="fas fa-save"></i> שמור</button>
+                        <button onclick="saveFile('${id}','excel', true)">שמירה בשם</button>
+                    </div>
                     <div class="ribbon bg-white dark:bg-[#444]">
                         <div class="ribbon-btn"><i class="fas fa-paste"></i> הדבק</div>
                         <div class="ribbon-btn"><i class="fas fa-copy"></i> העתק</div>
@@ -960,7 +1005,15 @@
         // 6. NOTEPAD (Restored)
         function initNotepad(c, id, content, filename) {
             c.dataset.filename = filename || '';
-            c.innerHTML = `<div class="h-full flex flex-col bg-white"><div class="border-b p-1 text-xs"><button onclick="saveFile('${id}','note')">שמור</button></div><textarea id="note-${id}" class="flex-grow p-2 outline-none resize-none font-mono text-sm">${content || ''}</textarea></div>`;
+            c.innerHTML = `
+                <div class="h-full flex flex-col bg-white">
+                    <div class="border-b p-1 text-xs flex gap-2">
+                        <button onclick="saveFile('${id}','note')">שמור</button>
+                        <button onclick="saveFile('${id}','note', true)">שמירה בשם</button>
+                    </div>
+                    <textarea id="note-${id}" class="flex-grow p-2 outline-none resize-none font-mono text-sm">${content || ''}</textarea>
+                </div>
+            `;
         }
 
         // 7. SETTINGS (Restored with Logic)
