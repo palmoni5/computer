@@ -186,7 +186,8 @@
     <!-- Boot Screen -->
     <div id="boot-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; background:black; color:white; display:flex; flex-direction:column; align-items:center; justify-content:center;">
         <i class="fab fa-windows text-6xl text-blue-500 mb-6"></i>
-        <div class="loader w-8 h-8 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+        <div id="boot-loader" class="loader w-8 h-8 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+        <div id="boot-text" class="mt-4 text-sm font-light">טוען מערכת...</div>
     </div>
 
     <!-- Desktop -->
@@ -214,7 +215,10 @@
                     <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">A</div>
                     <span class="text-sm font-semibold">Admin</span>
                 </div>
-                <button onclick="systemAction('shutdown')" class="w-8 h-8 rounded hover:bg-black/10 flex items-center justify-center"><i class="fas fa-power-off"></i></button>
+                <div class="flex gap-2">
+                    <button onclick="systemAction('restart')" class="w-8 h-8 rounded hover:bg-black/10 flex items-center justify-center text-orange-600" title="הפעלה מחדש"><i class="fas fa-sync-alt"></i></button>
+                    <button onclick="systemAction('shutdown')" class="w-8 h-8 rounded hover:bg-black/10 flex items-center justify-center text-red-600" title="כיבוי"><i class="fas fa-power-off"></i></button>
+                </div>
             </div>
         </div>
 
@@ -393,7 +397,7 @@
                 div.style.right = (20 + col * 96) + 'px'; // RTL
                 div.innerHTML = `<i class="fas ${i.icon} text-3xl mb-2 ${i.color}"></i><span class="text-xs text-center leading-tight shadow-black">${i.label}</span>`;
                 
-                // Drag Logic
+                // FIXED DRAG LOGIC (Global Mouseup)
                 div.onmousedown = (e) => {
                     if(e.button !== 0) return;
                     div.classList.add('selected');
@@ -409,12 +413,14 @@
                         div.style.right = 'auto'; 
                     }
                     function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
-                    document.addEventListener('mousemove', onMouseMove);
-                    div.onmouseup = () => {
+                    function onMouseUp() {
                         document.removeEventListener('mousemove', onMouseMove);
-                        div.onmouseup = null;
+                        document.removeEventListener('mouseup', onMouseUp);
                         div.classList.remove('selected');
-                    };
+                    }
+                    
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp); // Attach to doc
                 };
 
                 div.ondblclick = () => openWindow(i.app);
@@ -480,18 +486,25 @@
                 </div>
             `;
             
+            // FIXED DRAG LOGIC (Global Mouseup)
             header.onmousedown = (e) => {
                 if(e.target.closest('.win-btn')) return;
                 zIndex++; win.style.zIndex = zIndex;
                 let shiftX = e.clientX - win.getBoundingClientRect().left;
                 let shiftY = e.clientY - win.getBoundingClientRect().top;
+                
                 function moveAt(pageX, pageY) {
                     win.style.left = (pageX - shiftX) + 'px';
                     win.style.top = (pageY - shiftY) + 'px';
                 }
                 function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                }
+                
                 document.addEventListener('mousemove', onMouseMove);
-                header.onmouseup = () => { document.removeEventListener('mousemove', onMouseMove); header.onmouseup = null; };
+                document.addEventListener('mouseup', onMouseUp); // Attach to doc
             };
 
             const contentDiv = document.createElement('div');
@@ -632,16 +645,19 @@
             document.getElementById(`exp-count-${id}`).innerText = count;
         }
 
-        // 2. ANDROID ULTRA (Fixed Nav)
+        // 2. ANDROID ULTRA (Recreated)
         function initAndroid(c, id) {
             c.innerHTML = `
                 <div class="android-frame">
                     <div class="android-screen">
+                        <!-- Status Bar -->
                         <div class="flex justify-between px-3 py-1 text-white text-[10px] z-50 absolute w-full bg-black/20 top-0 left-0">
                             <span>12:00</span>
                             <div class="flex gap-1"><i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i></div>
                         </div>
+
                         <div class="flex-grow relative overflow-hidden flex flex-col pt-6 pb-12">
+                            <!-- Home Screen -->
                             <div id="and-home-${id}" class="android-app active bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400')] bg-cover text-white p-4 h-full absolute top-0 left-0">
                                 <div class="mt-8 text-center text-4xl font-light drop-shadow">12:00</div>
                                 <div class="text-center text-xs opacity-80 mb-auto">Sunday, Jan 1</div>
@@ -652,11 +668,13 @@
                                     ${appIcon('browser', 'bg-orange-500', 'fab fa-chrome', id, 'browser')}
                                 </div>
                             </div>
+
                             <!-- Apps -->
-                            <div id="and-phone-${id}" class="android-app absolute top-0 left-0 h-full">
+                            <!-- Phone -->
+                            <div id="and-phone-${id}" class="android-app absolute top-0 left-0 h-full bg-white">
                                 <div class="bg-gray-100 p-2 font-bold text-gray-800 text-center shadow pt-8">Phone</div>
-                                <div class="flex-grow flex flex-col items-center justify-center relative bg-white">
-                                    <div id="call-overlay-${id}" class="absolute w-full h-full bg-black/90 text-white flex flex-col items-center justify-center z-10 hidden">
+                                <div class="flex-grow flex flex-col items-center justify-center relative">
+                                    <div id="call-overlay-${id}" class="absolute w-full h-full bg-black/90 text-white flex flex-col items-center justify-center z-20 hidden">
                                         <div class="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-3xl mb-4 animate-[pulse-ring_2s_infinite]"><i class="fas fa-user"></i></div>
                                         <div class="text-xl">Calling...</div>
                                         <div class="text-sm opacity-70 mb-8" id="call-num-${id}"></div>
@@ -669,32 +687,42 @@
                                     <button class="w-16 h-16 rounded-full bg-green-500 text-white text-2xl mt-8 shadow-lg" onclick="startCall('${id}')"><i class="fas fa-phone"></i></button>
                                 </div>
                             </div>
+
+                            <!-- Messages -->
                             <div id="and-msg-${id}" class="android-app bg-white flex flex-col absolute top-0 left-0 h-full">
                                 <div class="bg-blue-600 p-3 text-white font-bold shadow pt-8">Messages</div>
                                 <div class="flex-grow p-2 overflow-y-auto flex flex-col gap-2 bg-gray-50" id="msg-list-${id}">
                                     <div class="bg-gray-200 p-2 rounded-lg self-start max-w-[80%] text-sm">Welcome to Android!</div>
                                 </div>
-                                <div class="p-2 border-t flex gap-2 bg-white pb-14">
+                                <div class="p-2 border-t flex gap-2 bg-white">
                                     <input id="msg-in-${id}" class="flex-grow border rounded-full px-3 text-sm" placeholder="Text message">
                                     <button class="text-blue-600" onclick="sendMsg('${id}')"><i class="fas fa-paper-plane"></i></button>
                                 </div>
                             </div>
+
+                            <!-- Gallery -->
                             <div id="and-gallery-${id}" class="android-app bg-black text-white p-2 grid grid-cols-3 gap-1 content-start overflow-y-auto absolute top-0 left-0 h-full pt-8">
+                                <div class="col-span-3 text-center text-lg font-bold py-2">Gallery</div>
                                 ${Array(12).fill(0).map((_,i) => `<div class="aspect-square bg-gray-800 rounded overflow-hidden"><img src="https://picsum.photos/100?random=${i}" class="w-full h-full object-cover"></div>`).join('')}
                             </div>
-                            <div id="and-browser-${id}" class="android-app flex flex-col absolute top-0 left-0 h-full">
-                                <div class="bg-gray-200 p-2 flex gap-2 items-center text-xs pt-8">
+
+                            <!-- Browser -->
+                            <div id="and-browser-${id}" class="android-app flex flex-col absolute top-0 left-0 h-full bg-white">
+                                <div class="bg-gray-200 p-2 flex gap-2 items-center text-xs pt-8 border-b">
                                     <div class="bg-white flex-grow rounded px-2 py-1 flex items-center gap-2"><i class="fas fa-lock text-green-600"></i> google.com</div>
                                 </div>
-                                <div class="flex-grow flex flex-col items-center justify-center bg-white">
-                                    <iframe src="about:blank" class="w-full h-full border-none"></iframe>
+                                <div class="flex-grow flex flex-col items-center justify-center p-4">
+                                    <span class="text-4xl font-bold mb-4"><span class="text-blue-500">G</span><span class="text-red-500">o</span><span class="text-yellow-500">o</span><span class="text-blue-500">g</span><span class="text-green-500">l</span><span class="text-red-500">e</span></span>
+                                    <input class="border rounded-full px-4 py-2 w-full shadow-inner" placeholder="Search">
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Nav Bar (Fixed Bottom) -->
                         <div class="bg-black py-3 flex justify-around text-gray-400 z-50 absolute bottom-0 left-0 w-full h-12 items-center">
-                            <i class="fas fa-bars cursor-pointer text-lg"></i>
-                            <i class="fas fa-square cursor-pointer text-lg" onclick="goHome('${id}')"></i>
-                            <i class="fas fa-arrow-left cursor-pointer text-lg" onclick="goHome('${id}')"></i>
+                            <i class="fas fa-bars cursor-pointer text-lg hover:text-white"></i>
+                            <i class="fas fa-square cursor-pointer text-lg hover:text-white" onclick="goHome('${id}')"></i>
+                            <i class="fas fa-arrow-left cursor-pointer text-lg hover:text-white" onclick="goHome('${id}')"></i>
                         </div>
                     </div>
                 </div>
@@ -807,8 +835,9 @@
                              w.style.top = (pageY - shiftY - deskRect.top) + 'px';
                          }
                          function onMove(ev) { moveAt(ev.pageX, ev.pageY); }
+                         function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
                          document.addEventListener('mousemove', onMove);
-                         h.onmouseup = () => document.removeEventListener('mousemove', onMove);
+                         document.addEventListener('mouseup', onUp);
                     };
                 });
             }, 500);
@@ -1000,7 +1029,23 @@
         window.setWall = (url) => {
             document.getElementById('wallpaper').style.backgroundImage = `url('${url}')`;
         }
-        function systemAction(act) { location.reload(); }
+        function systemAction(act) {
+            const boot = document.getElementById('boot-screen');
+            const txt = document.getElementById('boot-text');
+            const load = document.getElementById('boot-loader');
+            
+            boot.style.display = 'flex';
+            boot.style.opacity = '1';
+            
+            if(act === 'restart') {
+                txt.innerText = 'מפעיל מחדש...';
+            } else {
+                txt.innerText = 'מכבה...';
+                setTimeout(() => { load.style.display = 'none'; txt.innerText = 'המחשב כבוי כעת. רענן את הדף להפעלה.'; }, 3000);
+                return;
+            }
+            setTimeout(() => location.reload(), 3000);
+        }
 
     </script>
 </body>
