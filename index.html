@@ -261,7 +261,7 @@
                                 'Admin': {
                                     type: 'folder', children: {
                                         'Desktop': { type: 'folder', children: {
-                                            'Notes.txt': { type: 'file', app: 'note', content: 'Todo:\n1. Buy milk\n2. Fix bugs' }
+                                            'Notes.txt': { type: 'file', app: 'notes', content: 'Todo:\n1. Buy milk\n2. Fix bugs' }
                                         }},
                                         'Documents': { 
                                             type: 'folder', children: {
@@ -389,7 +389,8 @@
             { id: 'cmd', name: 'Terminal', icon: 'fa-terminal', color: 'text-gray-700', w: 600, h: 400, init: initCMD },
             { id: 'notes', name: 'פנקס רשימות', icon: 'fa-sticky-note', color: 'text-gray-600', w: 400, h: 300, init: initNotepad },
             { id: 'android', name: 'Android', icon: 'fa-robot', color: 'text-green-500', w: 380, h: 720, init: initAndroid },
-            { id: 'mac', name: 'macOS VM', icon: 'fa-laptop', color: 'text-gray-800', w: 850, h: 550, init: initMac }
+            { id: 'mac', name: 'macOS VM', icon: 'fa-laptop', color: 'text-gray-800', w: 850, h: 550, init: initMac },
+            { id: 'gallery', name: 'Photos', icon: 'fa-image', color: 'text-purple-500', w: 800, h: 600, content: '<div class="h-full bg-black flex items-center justify-center"><img src="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800" style="max-height:100%;max-width:100%"></div>' }
         ];
 
         // --- Boot ---
@@ -497,6 +498,10 @@
         // --- Window Manager ---
         function openWindow(appId, content=null, filename=null, path=null) {
             const app = apps.find(a => a.id === appId);
+            if (!app) {
+                alert('שגיאה: האפליקציה לא נמצאה (' + appId + ')');
+                return;
+            }
             const id = appId + '_' + Date.now();
             zIndex++;
             // Fix drag logic for new windows without changing container logic
@@ -552,7 +557,11 @@
             document.getElementById('task-'+appId).classList.add('active');
             activeWindows[id] = { app: appId }; // Track for refresh
             
-            if(app.init) app.init(contentDiv, id, content, filename, path);
+            if (app.content) {
+                contentDiv.innerHTML = app.content;
+            } else if (app.init) {
+                app.init(contentDiv, id, content, filename, path);
+            }
         }
 
         function closeWindow(id) {
@@ -678,7 +687,7 @@
                     if(data.type==='folder') { icon='fa-folder'; color='text-yellow-400'; }
                     else if(data.app==='word') { icon='fa-file-word'; color='text-blue-600'; }
                     else if(data.app==='excel') { icon='fa-file-excel'; color='text-green-600'; }
-                    else if(data.app==='note') { icon='fa-sticky-note'; color='text-yellow-600'; }
+                    else if(data.app==='notes') { icon='fa-sticky-note'; color='text-yellow-600'; }
                     else if(data.app==='gallery') { icon='fa-image'; color='text-purple-600'; }
                     else if(data.app==='cmd') { icon='fa-cog'; color='text-gray-600'; }
                     
