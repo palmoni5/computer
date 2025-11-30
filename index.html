@@ -16,6 +16,14 @@
             --hover-bg: rgba(0,0,0,0.05);
         }
         
+        .dark-mode {
+            --bg-glass: rgba(30, 30, 30, 0.85);
+            --bg-window: rgba(32, 32, 32, 0.95);
+            --text-color: #fff;
+            --border-color: rgba(255,255,255,0.1);
+            --hover-bg: rgba(255,255,255,0.1);
+        }
+
         body {
             overflow: hidden;
             font-family: 'Segoe UI Variable', 'Segoe UI', Tahoma, sans-serif;
@@ -69,7 +77,7 @@
             resize: both;
             background: var(--bg-window);
             color: var(--text-color);
-            pointer-events: auto; /* IMPORTANT: Windows capture clicks */
+            pointer-events: auto;
         }
         .window-header {
             height: 40px;
@@ -96,7 +104,7 @@
             border-radius: 4px; transition: background 0.2s;
             color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
             cursor: pointer;
-            z-index: 10; /* Ensure clickable */
+            z-index: 10; 
         }
         .desktop-icon:hover { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); }
         .desktop-icon.selected { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); }
@@ -141,7 +149,7 @@
         }
         .start-menu.active { display: flex; }
 
-        /* Android Emulator */
+        /* Emulators */
         .android-frame { background: #111; border-radius: 30px; padding: 10px; border: 2px solid #333; height: 100%; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         .android-screen { flex-grow: 1; background: black; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
         .android-app { display: none; width: 100%; height: 100%; background: white; flex-direction: column; animation: fadeIn 0.2s; flex-grow: 1; overflow: hidden;}
@@ -389,19 +397,16 @@
                 div.onmousedown = (e) => {
                     if(e.button !== 0) return;
                     div.classList.add('selected');
-                    // Calculate shift from mouse click to icon top-left
                     const rect = div.getBoundingClientRect();
                     let shiftX = e.clientX - rect.left;
                     let shiftY = e.clientY - rect.top;
                     
                     function moveAt(pageX, pageY) {
-                        // Keep within bounds
                         let newTop = pageY - shiftY;
                         let newLeft = pageX - shiftX;
-                        
                         div.style.top = newTop + 'px';
                         div.style.left = newLeft + 'px'; 
-                        div.style.right = 'auto'; // Reset right since we use left for drag
+                        div.style.right = 'auto'; 
                     }
                     function onMouseMove(event) { moveAt(event.pageX, event.pageY); }
                     document.addEventListener('mousemove', onMouseMove);
@@ -452,7 +457,7 @@
             const app = apps.find(a => a.id === appId);
             const id = appId + '_' + Date.now();
             zIndex++;
-            // Note: We do NOT toggle pointerEvents on windows-container anymore. CSS handles it.
+            document.getElementById('windows-container').style.pointerEvents = 'auto';
 
             const win = document.createElement('div');
             win.className = 'window glass';
@@ -526,7 +531,7 @@
             let ext = '';
             
             if(type==='word') { content = document.getElementById(`doc-${winId}`).innerHTML; ext='.docx'; }
-            else if(type==='excel') { content = 'Spreadsheet Data'; ext='.xlsx'; } // Simplified
+            else if(type==='excel') { content = 'Spreadsheet Data'; ext='.xlsx'; }
             else if(type==='note') { content = document.getElementById(`note-${winId}`).value; ext='.txt'; }
 
             let filename = container.dataset.filename;
@@ -535,7 +540,7 @@
                 if(!filename) return;
             }
             
-            const path = ['Users', 'Admin', 'Documents']; // Default save path
+            const path = ['Users', 'Admin', 'Documents']; 
             if(vfs.write(path, filename, content, type)) {
                 alert('הקובץ נשמר בהצלחה בתיקיית Documents');
                 container.dataset.filename = filename;
@@ -544,7 +549,7 @@
 
         // --- Apps Logic ---
 
-        // 1. ADVANCED EXPLORER
+        // 1. EXPLORER (Advanced)
         function initExplorer(c, id) {
             let currentPath = ['Users', 'Admin', 'Documents'];
             c.innerHTML = `
@@ -580,7 +585,6 @@
         window.expAction = (id, action) => {
             const path = JSON.parse(document.getElementById(id).querySelector('.window-content').dataset.path);
             const selected = document.querySelector(`#exp-grid-${id} .file-item.selected`);
-            
             if(action === 'paste') {
                 if(vfs.paste(path)) { renderExplorer(id); }
             } else if (selected) {
@@ -596,7 +600,6 @@
             const grid = document.getElementById(`exp-grid-${id}`);
             const dir = vfs.resolve(path);
             
-            // Update address bar
             const addr = document.getElementById(`exp-addr-${id}`);
             if(addr) addr.value = path.join(' > ');
 
@@ -634,18 +637,14 @@
             c.innerHTML = `
                 <div class="android-frame">
                     <div class="android-screen">
-                        <!-- Status Bar -->
                         <div class="flex justify-between px-3 py-1 text-white text-[10px] z-50 absolute w-full bg-black/20 top-0 left-0">
                             <span>12:00</span>
                             <div class="flex gap-1"><i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i></div>
                         </div>
-
                         <div class="flex-grow relative overflow-hidden flex flex-col pt-6 pb-12">
-                            <!-- Home Screen -->
                             <div id="and-home-${id}" class="android-app active bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400')] bg-cover text-white p-4 h-full absolute top-0 left-0">
                                 <div class="mt-8 text-center text-4xl font-light drop-shadow">12:00</div>
                                 <div class="text-center text-xs opacity-80 mb-auto">Sunday, Jan 1</div>
-                                
                                 <div class="grid grid-cols-4 gap-4 mt-auto mb-4 absolute bottom-4 w-full px-4 left-0">
                                     ${appIcon('phone', 'bg-green-500', 'fas fa-phone', id, 'phone')}
                                     ${appIcon('msg', 'bg-blue-500', 'fas fa-comment', id, 'msg')}
@@ -653,7 +652,6 @@
                                     ${appIcon('browser', 'bg-orange-500', 'fab fa-chrome', id, 'browser')}
                                 </div>
                             </div>
-
                             <!-- Apps -->
                             <div id="and-phone-${id}" class="android-app absolute top-0 left-0 h-full">
                                 <div class="bg-gray-100 p-2 font-bold text-gray-800 text-center shadow pt-8">Phone</div>
@@ -671,7 +669,6 @@
                                     <button class="w-16 h-16 rounded-full bg-green-500 text-white text-2xl mt-8 shadow-lg" onclick="startCall('${id}')"><i class="fas fa-phone"></i></button>
                                 </div>
                             </div>
-
                             <div id="and-msg-${id}" class="android-app bg-white flex flex-col absolute top-0 left-0 h-full">
                                 <div class="bg-blue-600 p-3 text-white font-bold shadow pt-8">Messages</div>
                                 <div class="flex-grow p-2 overflow-y-auto flex flex-col gap-2 bg-gray-50" id="msg-list-${id}">
@@ -682,11 +679,9 @@
                                     <button class="text-blue-600" onclick="sendMsg('${id}')"><i class="fas fa-paper-plane"></i></button>
                                 </div>
                             </div>
-
                             <div id="and-gallery-${id}" class="android-app bg-black text-white p-2 grid grid-cols-3 gap-1 content-start overflow-y-auto absolute top-0 left-0 h-full pt-8">
                                 ${Array(12).fill(0).map((_,i) => `<div class="aspect-square bg-gray-800 rounded overflow-hidden"><img src="https://picsum.photos/100?random=${i}" class="w-full h-full object-cover"></div>`).join('')}
                             </div>
-
                             <div id="and-browser-${id}" class="android-app flex flex-col absolute top-0 left-0 h-full">
                                 <div class="bg-gray-200 p-2 flex gap-2 items-center text-xs pt-8">
                                     <div class="bg-white flex-grow rounded px-2 py-1 flex items-center gap-2"><i class="fas fa-lock text-green-600"></i> google.com</div>
@@ -696,8 +691,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Nav Bar (Fixed Bottom) -->
                         <div class="bg-black py-3 flex justify-around text-gray-400 z-50 absolute bottom-0 left-0 w-full h-12 items-center">
                             <i class="fas fa-bars cursor-pointer text-lg"></i>
                             <i class="fas fa-square cursor-pointer text-lg" onclick="goHome('${id}')"></i>
@@ -760,7 +753,6 @@
                         </div>
                     </div>
                     <div class="mac-desktop" id="mac-desk-${id}">
-                        <!-- Safari Window -->
                         <div id="mac-safari-${id}" class="mac-window-vm w-[500px] h-[350px] top-[40px] left-[50px]">
                             <div class="bg-gray-200 p-2 flex gap-2 items-center border-b">
                                 <div class="flex gap-2 mr-2">
@@ -776,8 +768,6 @@
                                 <button class="mt-4 bg-blue-600 text-white px-4 py-1 rounded-full text-sm">Buy</button>
                             </div>
                         </div>
-
-                         <!-- Terminal Window -->
                         <div id="mac-term-${id}" class="mac-window-vm w-[400px] h-[300px] top-[100px] left-[200px] bg-[#1e1e1e] text-white font-mono text-sm border-none shadow-2xl">
                             <div class="bg-[#333] p-2 flex gap-2 items-center border-b border-gray-600">
                                 <div class="flex gap-2 mr-2">
@@ -792,7 +782,6 @@
                                 <div>user@macbook % <span class="animate-pulse">_</span></div>
                             </div>
                         </div>
-
                          <div class="mac-dock">
                             <div class="mac-dock-icon bg-blue-500 text-white"><i class="fas fa-smile"></i></div>
                             <div class="mac-dock-icon bg-white text-blue-500" onclick="toggleMacWin('${id}', 'safari')"><i class="fab fa-safari"></i></div>
@@ -805,17 +794,14 @@
                 </div>
             `;
             
-            // Make Mac windows draggable within VM
             setTimeout(() => {
                 c.querySelectorAll('.mac-window-vm').forEach(w => {
                     const h = w.firstElementChild;
                     h.onmousedown = (e) => {
-                         // Simple drag logic for internal windows
                          let shiftX = e.clientX - w.getBoundingClientRect().left;
                          let shiftY = e.clientY - w.getBoundingClientRect().top;
                          const desk = document.getElementById(`mac-desk-${id}`);
                          const deskRect = desk.getBoundingClientRect();
-                         
                          function moveAt(pageX, pageY) {
                              w.style.left = (pageX - shiftX - deskRect.left) + 'px';
                              w.style.top = (pageY - shiftY - deskRect.top) + 'px';
@@ -835,19 +821,26 @@
             }
         }
 
-        // 3. WORD (With Save)
+        // 4. WORD (Functional)
         function initWord(c, id, content, filename) {
             c.dataset.filename = filename || '';
             c.innerHTML = `
                 <div class="flex flex-col h-full bg-gray-100 dark:bg-[#333]">
                     <div class="bg-[#2b579a] text-white px-2 py-1 text-xs flex gap-4">
                         <span class="cursor-pointer hover:bg-white/20 px-2 rounded" onclick="saveFile('${id}', 'word')"><i class="fas fa-save"></i> שמור</span>
+                        <span>בית</span> <span>הוספה</span> <span>תצוגה</span>
                     </div>
                     <div class="ribbon bg-white dark:bg-[#444] text-xs">
-                        <div class="ribbon-btn" onclick="document.execCommand('bold')"><i class="fas fa-bold"></i></div>
-                        <div class="ribbon-btn" onclick="document.execCommand('italic')"><i class="fas fa-italic"></i></div>
-                        <div class="ribbon-btn" onclick="document.execCommand('underline')"><i class="fas fa-underline"></i></div>
-                         <div class="ribbon-btn" onclick="document.execCommand('foreColor', false, 'red')"><i class="fas fa-font text-red-500"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('bold')"><i class="fas fa-bold"></i> מודגש</div>
+                        <div class="ribbon-btn" onclick="document.execCommand('italic')"><i class="fas fa-italic"></i> נטוי</div>
+                        <div class="ribbon-btn" onclick="document.execCommand('underline')"><i class="fas fa-underline"></i> קו</div>
+                        <div class="ribbon-sep"></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('justifyLeft')"><i class="fas fa-align-left"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('justifyCenter')"><i class="fas fa-align-center"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('justifyRight')"><i class="fas fa-align-right"></i></div>
+                        <div class="ribbon-sep"></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('foreColor', false, 'red')"><i class="fas fa-font text-red-500"></i></div>
+                        <div class="ribbon-btn" onclick="document.execCommand('foreColor', false, 'blue')"><i class="fas fa-font text-blue-500"></i></div>
                     </div>
                     <div class="flex-grow bg-gray-200 dark:bg-[#222] overflow-auto p-8 flex justify-center">
                         <div id="doc-${id}" class="bg-white w-[21cm] min-h-[29.7cm] shadow-xl p-[2.5cm] outline-none text-right text-black" contenteditable="true">
@@ -858,22 +851,155 @@
             `;
         }
 
-        // 4. EXCEL
+        // 5. EXCEL (Functional)
         function initExcel(c, id) {
-            c.innerHTML = `<div class="h-full flex flex-col bg-white"><div class="bg-[#217346] text-white p-1 text-xs"><button onclick="saveFile('${id}','excel')"><i class="fas fa-save"></i> שמור</button></div><div class="flex-grow overflow-auto grid grid-cols-[40px_repeat(10,100px)]">${Array.from({length:100},(_,i)=>`<input class="border text-xs p-1">`).join('')}</div></div>`;
+            c.innerHTML = `
+                <div class="flex flex-col h-full bg-white dark:bg-[#333] text-sm">
+                    <div class="bg-[#217346] text-white px-2 py-1 text-xs"><button onclick="saveFile('${id}','excel')"><i class="fas fa-save"></i> שמור</button></div>
+                    <div class="ribbon bg-white dark:bg-[#444]">
+                        <div class="ribbon-btn"><i class="fas fa-paste"></i> הדבק</div>
+                        <div class="ribbon-btn"><i class="fas fa-copy"></i> העתק</div>
+                        <div class="ribbon-sep"></div>
+                        <div class="ribbon-btn font-bold">B</div>
+                        <div class="ribbon-btn italic">I</div>
+                    </div>
+                    <div class="flex items-center border-b p-1 bg-gray-100 dark:bg-[#333] dark:border-gray-600">
+                        <div class="w-10 text-center border bg-white dark:bg-[#444] dark:border-gray-500 mr-2 text-xs py-1">A1</div>
+                        <input type="text" class="flex-grow border px-2 py-1 text-xs dark:bg-[#444] dark:border-gray-500 dark:text-white" placeholder="fx">
+                    </div>
+                    <div class="flex-grow overflow-auto grid grid-cols-[40px_repeat(10,100px)]">
+                        <div class="bg-gray-100 border-b border-r dark:bg-[#444]"></div>
+                        ${Array.from({length:10},(_,i)=>`<div class="bg-gray-100 border-b border-r text-center text-xs p-1 font-bold dark:bg-[#444]">${String.fromCharCode(65+i)}</div>`).join('')}
+                        ${Array.from({length:30},(_,r)=>
+                            `<div class="bg-gray-100 border-b border-r text-center text-xs p-1 dark:bg-[#444]">${r+1}</div>` +
+                            Array.from({length:10},()=>`<input class="border-b border-r text-xs p-1 outline-none focus:border-green-500 focus:border-2 dark:bg-[#222] dark:text-white">`).join('')
+                        ).join('')}
+                    </div>
+                </div>`;
         }
 
-        // 5. NOTEPAD
+        // 6. NOTEPAD
         function initNotepad(c, id, content, filename) {
             c.dataset.filename = filename || '';
             c.innerHTML = `<div class="h-full flex flex-col bg-white"><div class="border-b p-1 text-xs"><button onclick="saveFile('${id}','note')">שמור</button></div><textarea id="note-${id}" class="flex-grow p-2 outline-none resize-none font-mono text-sm">${content || ''}</textarea></div>`;
         }
 
-        // Standard Functions
-        function initSettings(c){ c.innerHTML = '<div class="p-4">הגדרות מערכת (דמה)</div>'; }
-        function initCMD(c){ c.innerHTML = '<div class="bg-black text-white h-full p-2 font-mono">Microsoft Windows [Version 12.0]<br>C:\\Users\\Admin></div>'; }
-        function initPPT(c){ c.innerHTML = '<div class="h-full bg-white flex items-center justify-center">PowerPoint Slide</div>'; }
+        // 7. SETTINGS (Restored)
+        function initSettings(c) {
+            c.innerHTML = `
+                <div class="flex h-full text-sm select-none">
+                    <div class="w-1/4 border-l border-gray-300/20 p-2 flex flex-col gap-1 bg-gray-50/50 dark:bg-gray-800/50">
+                        <div class="p-3 flex items-center gap-3 mb-2">
+                             <div class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">A</div>
+                             <div><div class="font-bold">Admin</div><div class="text-xs opacity-60">Local Account</div></div>
+                        </div>
+                        <input type="text" placeholder="חיפוש בהגדרות" class="mb-4 p-2 rounded border bg-white/50 w-full">
+                        ${['מערכת', 'Bluetooth והתקנים', 'רשת ואינטרנט', 'התאמה אישית', 'אפליקציות', 'חשבונות', 'זמן ושפה', 'משחקים', 'נגישות', 'Windows Update'].map((item, i) => 
+                            `<div class="p-2 rounded hover:bg-black/5 cursor-pointer flex items-center gap-3 ${i===0?'bg-white shadow-sm':''}">
+                                <i class="fas fa-${['laptop','bluetooth','wifi','paint-brush','th','user','clock','gamepad','universal-access','sync'][i]} w-5 text-center text-blue-500"></i> ${item}
+                            </div>`
+                        ).join('')}
+                    </div>
+                    <div class="w-3/4 p-6 overflow-auto bg-white/80 dark:bg-[#202020]/90">
+                        <h2 class="text-2xl font-bold mb-6">מערכת</h2>
+                        <div class="mb-6 p-4 bg-white/50 dark:bg-white/5 rounded-lg border border-gray-200/50">
+                            <div class="flex items-center gap-3 mb-4"><i class="fas fa-sun text-xl"></i> <span class="font-bold">תצוגה</span></div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span>בהירות</span>
+                                <input type="range" min="20" max="100" value="${systemState.brightness}" oninput="setBrightness(this.value)" class="w-48">
+                            </div>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-6 mt-8">התאמה אישית</h2>
+                        <div class="font-bold mb-2">רקע לשולחן העבודה</div>
+                        <div class="grid grid-cols-3 gap-3">
+                             ${['https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1477346611705-65d1883cee1e?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80'].map(url => 
+                                 `<div class="aspect-video rounded overflow-hidden cursor-pointer border-2 border-transparent hover:border-blue-500" onclick="setWall('${url.split('?')[0]}')">
+                                    <img src="${url}" class="w-full h-full object-cover">
+                                 </div>`
+                             ).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
+        // 8. CMD (Restored)
+        function initCMD(c, id) {
+            c.innerHTML = `
+                <div class="bg-black text-gray-300 font-mono text-sm h-full p-2 overflow-auto" onclick="document.getElementById('cmd-in-${id}').focus()">
+                    <div>Microsoft Windows [Version 12.0.22621.1]<br>(c) Microsoft Corporation. All rights reserved.</div><br>
+                    <div id="cmd-out-${id}"></div>
+                    <div class="flex">
+                        <span class="mr-2 text-white">C:\\Users\\Admin></span>
+                        <input id="cmd-in-${id}" class="bg-transparent border-none outline-none text-white flex-grow font-mono" autocomplete="off" onkeydown="handleCMD(event, '${id}')">
+                    </div>
+                </div>
+            `;
+        }
+        window.handleCMD = (e, id) => {
+            if(e.key === 'Enter') {
+                const val = e.target.value;
+                const out = document.getElementById(`cmd-out-${id}`);
+                out.innerHTML += `<div><span class="text-white">C:\\Users\\Admin></span> ${val}</div>`;
+                if(val === 'dir') out.innerHTML += `<div>01/01/2025 <DIR> Documents<br>01/01/2025 <DIR> Downloads</div>`;
+                else if(val === 'cls') out.innerHTML = '';
+                else if(val === 'help') out.innerHTML += `<div>Commands: dir, cls, echo, exit, help</div>`;
+                else out.innerHTML += `<div class="text-red-400">'${val}' is not recognized.</div>`;
+                e.target.value = '';
+                e.target.parentElement.parentElement.scrollTop = 99999;
+            }
+        }
+
+        // 9. POWERPOINT (Restored)
+        let pptSlides = [{title: "כותרת ראשית", sub: "כותרת משנה"}, {title: "תוכן העניינים", sub: "נקודה 1\nנקודה 2"}];
+        function initPPT(c, id) {
+            c.innerHTML = `
+                <div class="flex flex-col h-full bg-white dark:bg-[#333]">
+                    <div class="bg-[#b7472a] text-white px-2 py-1 text-xs">PowerPoint</div>
+                    <div class="ribbon bg-white dark:bg-[#444]">
+                        <div class="ribbon-btn" onclick="addSlide('${id}')"><i class="fas fa-plus-square text-orange-600"></i> שקופית חדשה</div>
+                        <div class="ribbon-sep"></div>
+                        <div class="ribbon-btn"><i class="fas fa-image"></i> תמונה</div>
+                        <div class="ribbon-btn"><i class="fas fa-shapes"></i> צורות</div>
+                        <div class="ml-auto ribbon-btn" onclick="alert('מצגת מתחילה...')"><i class="fas fa-play text-green-600"></i> הצג</div>
+                    </div>
+                    <div class="flex flex-grow overflow-hidden">
+                        <div class="w-40 bg-gray-100 dark:bg-[#2a2a2a] border-l dark:border-gray-600 p-2 overflow-y-auto flex flex-col gap-2" id="ppt-sidebar-${id}"></div>
+                        <div class="flex-grow bg-gray-200 dark:bg-[#202020] p-8 flex items-center justify-center">
+                            <div class="bg-white aspect-video w-full shadow-2xl p-8 flex flex-col justify-center items-center text-center select-text" id="ppt-stage-${id}" contenteditable="true"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            renderPPT(id, 0);
+        }
+        window.addSlide = (id) => { pptSlides.push({title: "שקופית חדשה", sub: "הוסף טקסט"}); renderPPT(id, pptSlides.length-1); };
+        window.renderPPT = (id, idx) => {
+            const sb = document.getElementById(`ppt-sidebar-${id}`);
+            const st = document.getElementById(`ppt-stage-${id}`);
+            if(!sb || !st) return;
+            sb.innerHTML = pptSlides.map((s, i) => `
+                <div class="aspect-video bg-white border ${i===idx?'border-orange-500 ring-2 ring-orange-200':''} shadow-sm p-1 text-[5px] cursor-pointer overflow-hidden" onclick="renderPPT('${id}', ${i})">
+                    <div class="font-bold">${s.title}</div><div>${s.sub}</div>
+                </div>
+            `).join('');
+            st.innerHTML = `
+                <h1 class="text-4xl font-bold mb-4 text-gray-800 border border-dashed border-transparent hover:border-gray-400 p-2 w-full">${pptSlides[idx].title}</h1>
+                <div class="text-xl text-gray-500 w-full border border-dashed border-transparent hover:border-gray-400 p-2 whitespace-pre-wrap">${pptSlides[idx].sub}</div>
+            `;
+        }
+
+        // Helpers
+        window.setBrightness = (val) => {
+            systemState.brightness = val;
+            document.getElementById('brightness-overlay').style.opacity = (100 - val) / 100;
+        }
+        window.setWall = (url) => {
+            document.getElementById('wallpaper').style.backgroundImage = `url('${url}')`;
+        }
         function systemAction(act) { location.reload(); }
 
     </script>
